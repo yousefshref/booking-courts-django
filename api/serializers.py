@@ -18,6 +18,18 @@ class CourtSerializer(serializers.ModelSerializer):
         model = models.Court
         fields = '__all__'
 
+class CourtAdditionalSerializer(serializers.ModelSerializer):
+    class Meta():
+        model = models.CourtAdditional
+        fields = '__all__'
+
+class CourtAdditionalToolSerializer(serializers.ModelSerializer):
+    court_additional_details = CourtAdditionalSerializer(read_only=True, source='court_additional')
+    class Meta():
+        model = models.CourtAdditionalTool
+        fields = '__all__'
+
+
 
 
 class BookSerializer(serializers.ModelSerializer):

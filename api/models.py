@@ -47,6 +47,16 @@ class Court(models.Model):
 
 
 
+class CourtAdditional(models.Model):
+  user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
+  court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True)
+
+class CourtAdditionalTool(models.Model):
+  court_additional = models.ForeignKey(CourtAdditional, on_delete=models.CASCADE, null=True)
+  title = models.CharField(max_length=255)
+  price = models.IntegerField()
+  
+
 
 
 
@@ -87,4 +97,7 @@ class BookSetting(models.Model):
 
   # book to specific date
   book_to = models.DateField(null=True, blank=True)
+
+  # addiotionals
+  tools = models.ManyToManyField(CourtAdditionalTool, null=True, blank=True)
 
