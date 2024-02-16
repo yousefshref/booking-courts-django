@@ -23,7 +23,7 @@ urlpatterns = [
     path('book/check/<int:court_id>/', views.check_book),
     path('books/<int:user_id>/', views.get_user_books),
 
-    path('book/settings/<int:book_id>/', views.get_book_setting),
+    path('book/settings/<int:court_id>/', views.get_book_setting),
     path('book/settings/<int:book_id>/update/', views.edit_book_settings),
 
 

@@ -48,6 +48,8 @@ class Court(models.Model):
 
 
 
+
+
 class Book(models.Model):
   user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
   court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True)
@@ -58,8 +60,22 @@ class Book(models.Model):
   book_to = models.TimeField()
   with_ball = models.BooleanField()
   event = models.BooleanField()
+  total_price = models.IntegerField(null=True, blank=True)
   created_at = models.DateTimeField(auto_now_add=True)
   updated_at = models.DateTimeField(auto_now=True)
+
+
+  def save(self, *args, **kwargs):
+      self.total_price = self.court.price_per_hour
+
+      if self.with_ball:
+         self.total_price += self.court.ball_price
+
+      if self.event:
+         self.total_price += self.court.event_price
+
+      # check if offer made
+      super(Book, self).save(*args, **kwargs)
 
   def __str__(self):
       return self.name
