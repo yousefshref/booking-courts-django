@@ -59,15 +59,14 @@ class CourtAdditionalTool(models.Model):
 
 
 
-
 class Book(models.Model):
   user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
   court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True)
   name = models.CharField(max_length=255)
   phone = models.CharField(max_length=255)
   book_date = models.DateField()
-  book_from = models.TimeField()
-  book_to = models.TimeField()
+  # book_from = models.TimeField()
+  # book_to = models.TimeField()
   with_ball = models.BooleanField()
   event = models.BooleanField()
   total_price = models.IntegerField(null=True, blank=True)
@@ -76,13 +75,13 @@ class Book(models.Model):
 
 
   def save(self, *args, **kwargs):
-      self.total_price = self.court.price_per_hour
+      # self.total_price = self.court.price_per_hour
 
-      if self.with_ball:
-         self.total_price += self.court.ball_price
+      # if self.with_ball:
+      #    self.total_price += self.court.ball_price
 
-      if self.event:
-         self.total_price += self.court.event_price
+      # if self.event:
+      #    self.total_price += self.court.event_price
 
       # check if offer made
       super(Book, self).save(*args, **kwargs)
@@ -90,6 +89,12 @@ class Book(models.Model):
   def __str__(self):
       return self.name
 
+
+class BookTime(models.Model):
+  book = models.ForeignKey(Book, on_delete=models.CASCADE, null=True, related_name='book_time')
+  book_from = models.TimeField(null=True)
+  book_to = models.TimeField(null=True)
+   
 
 
 class BookSetting(models.Model):

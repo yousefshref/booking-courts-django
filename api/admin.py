@@ -12,4 +12,5 @@ admin.site.register(models.CourtAdditional)
 admin.site.register(models.CourtAdditionalTool)
 
 admin.site.register(models.BookSetting)
+admin.site.register(models.BookTime)
 admin.site.register(models.Book)

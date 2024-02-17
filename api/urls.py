@@ -27,6 +27,7 @@ urlpatterns = [
     path('books/<int:user_id>/', views.get_user_books),
 
     path('book/settings/<int:book_id>/', views.get_book_setting),
+    path('book/all_settings/<int:court_id>/', views.get_book_settings), # for booking the court get all settings
     path('book/settings/<int:book_id>/update/', views.edit_book_settings),
 
 

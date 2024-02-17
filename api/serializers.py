@@ -31,15 +31,21 @@ class CourtAdditionalToolSerializer(serializers.ModelSerializer):
 
 
 
+class BookTimeSerializer(serializers.ModelSerializer):
+    class Meta():
+        model = models.BookTime
+        fields = '__all__'
 
 class BookSerializer(serializers.ModelSerializer):
     court_details = CourtSerializer(read_only=True, source='court')
+    book_time = BookTimeSerializer(many=True, read_only=True)
     class Meta():
         model = models.Book
         fields = '__all__'
 
 class BookSettingSerializer(serializers.ModelSerializer):
     book_details = BookSerializer(read_only=True, source='book')
+    tools_details = CourtAdditionalToolSerializer(many=True, read_only=True, source='tools')
     class Meta():
         model = models.BookSetting
         fields = '__all__'

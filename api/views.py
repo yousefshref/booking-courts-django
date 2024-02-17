@@ -159,6 +159,14 @@ def get_book_setting(request, book_id):
     book = models.BookSetting.objects.get(book__id=book_id)
     ser = serializers.BookSettingSerializer(book)
     return Response(ser.data)
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_book_settings(request, court_id):
+    book = models.BookSetting.objects.filter(book__court__id=court_id)
+    ser = serializers.BookSettingSerializer(book, many=True)
+    return Response(ser.data)
     
 
 
