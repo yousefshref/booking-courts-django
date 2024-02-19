@@ -12,12 +12,6 @@ class StateSerializer(serializers.ModelSerializer):
         model = models.State
         fields = '__all__'
 
-class CourtSerializer(serializers.ModelSerializer):
-    state_details = StateSerializer(read_only=True, source='state')
-    class Meta():
-        model = models.Court
-        fields = '__all__'
-
 class CourtAdditionalSerializer(serializers.ModelSerializer):
     class Meta():
         model = models.CourtAdditional
@@ -28,6 +22,13 @@ class CourtAdditionalToolSerializer(serializers.ModelSerializer):
     class Meta():
         model = models.CourtAdditionalTool
         fields = '__all__'
+
+class CourtSerializer(serializers.ModelSerializer):
+    state_details = StateSerializer(read_only=True, source='state')
+    class Meta():
+        model = models.Court
+        fields = '__all__'
+
 
 
 
