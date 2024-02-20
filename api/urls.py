@@ -30,6 +30,8 @@ urlpatterns = [
     path('books/<int:user_id>/', views.get_user_books),
     # admin
     path('books/', views.get_books),
+    path('book/<int:book_id>/', views.get_book),
+    path('books_times/<int:court_id>/', views.get_book_times),
 
     path('book/settings/<int:book_id>/', views.get_book_setting),
     path('book/all_settings/<int:court_id>/', views.get_book_settings), # for booking the court get all settings

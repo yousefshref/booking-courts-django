@@ -5,9 +5,11 @@ from rest_framework.response import Response
 from rest_framework import status
 import json
 from django.db.models import F, Q
-
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
+
+from datetime import datetime
 
 from . import serializers
 from . import models
@@ -259,8 +261,33 @@ def get_books(request):
 
         if search:
             books = books.filter(Q(name__icontains=search) | Q(phone__icontains=search))    
+            
         ser = serializers.BookSerializer(books, many=True)
         return Response(ser.data)
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_book_times(request, court_id):
+    if request.user.is_superuser:
+        books = models.BookTime.objects.filter(book__court__id=court_id).order_by('-id')
+        ser = serializers.BookTimeSerializer(books, many=True)
+        return Response(ser.data)
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_book(request, book_id):
+    if request.user.is_superuser:
+      book = models.Book.objects.get(pk=book_id)
+      settings = models.BookSetting.objects.filter(book__id=book_id)
+      ser = serializers.BookSerializer(book)
+      sersettings = serializers.BookSettingSerializer(settings, many=True)
+      data = {
+          "book":ser.data,
+          "settings":sersettings.data,
+      }
+      return Response(data)
 
 
 
@@ -273,13 +300,52 @@ def get_book_setting(request, book_id):
     ser = serializers.BookSettingSerializer(book)
     return Response(ser.data)
 
+
+def convert_to_24_hour_format(time_str):
+    # Convert the time string to a datetime object
+    time_obj = datetime.strptime(time_str, '%I%p')
+
+    # Extract the hour and minute from the datetime object
+    hour = time_obj.hour
+    minute = time_obj.minute
+
+    # Return the hour and minute as a string in 24-hour format
+    return f"{hour:02d}:{minute:02d}:00"
+
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_book_settings(request, court_id):
+    court_date = request.GET.get('court_date')
+    slots = request.GET.get('slots').split(',')
+    times = models.BookTime.objects.filter(book__court__id=court_id)
+
+    book_times = []
+
+    for slot in slots:
+      for time in times:
+        slot1 = convert_to_24_hour_format(slot.split('-')[0])
+        slot2 = convert_to_24_hour_format(slot.split('-')[1])
+        time1 = time.book_from
+        time2 = time.book_to
+
+        f_condition = slot1 == str(time1) and slot2 == str(time2) and str(time.book.book_date) == court_date and str(time.book_to) > str(datetime.now().time())[:5]
+        s_condition = time.book_to_date != None and str(time.book_to_date) >= court_date and slot1 == str(time1) and slot2 == str(time2)
+        t_condition = time.book_to_date != None and str(time.book.book_date) == court_date and str(time.book_to_date) >= court_date and slot1 == str(time1) and slot2 == str(time2)
+        fourth_condition = time.book_to_date == None and str(time.book.book_date) == court_date and slot1 == str(time1) and slot2 == str(time2) and str(time.book_to) > str(datetime.now().time())[:5]
+
+        if f_condition or s_condition or t_condition or fourth_condition:
+          book_times.append(f"{slot1}-{slot2}")
+
+
     book = models.BookSetting.objects.filter(book__court__id=court_id)
     ser = serializers.BookSettingSerializer(book, many=True)
-    return Response(ser.data)
+
+    data = {
+        'settings':ser.data,
+        'booked':book_times    
+    }
+    return Response(data)
     
 
 
@@ -287,10 +353,42 @@ def get_book_settings(request, court_id):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def edit_book_settings(request, book_id):
+    # get book_to_date from request
+    # get the same bookTime with book_id
+    # cmpare book_to_date id with book_id id
+    # if exist change book_to_date
+
+    book_times_new = request.data.get('book_times')
+    book_times_exist = models.BookTime.objects.filter(book=book_id)
+
+    with transaction.atomic():
+      for book_time_new in book_times_new:
+          # Find the corresponding book time in the existing book times
+          book_time_exist = book_times_exist.filter(id=book_time_new['id']).first()
+
+          # If the book time exists, update the book_to_date field
+          if book_time_exist:
+              book_time_exist.book_to_date = book_time_new['book_to_date']
+              book_time_exist.save()
+          else:
+              # Handle the case where the book time does not exist in the existing book times
+              pass
+    
+
+    # check if the id delete exist
+    delete_id = request.data.get('delete')
+    if delete_id:
+      models.BookTime.objects.get(id=delete_id).delete()
+
     book = models.BookSetting.objects.get(book__id=book_id)
     ser = serializers.BookSettingSerializer(book, data=request.data, partial=True)
     if ser.is_valid():
       ser.save()
+
+      # check length of times if not exist delete the book
+      times = models.BookTime.objects.filter(book__id=ser.data['book'])
+      if(len(times) == 0):
+          instance = models.Book.objects.get(pk=ser.data['book']).delete()
       return Response(ser.data)
     return Response(ser.errors)
 

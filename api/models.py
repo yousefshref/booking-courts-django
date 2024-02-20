@@ -83,6 +83,7 @@ class BookTime(models.Model):
   book = models.ForeignKey(Book, on_delete=models.CASCADE, null=True, related_name='book_time')
   book_from = models.TimeField(null=True)
   book_to = models.TimeField(null=True)
+  book_to_date = models.DateField(null=True, blank=True)
    
 
 
@@ -90,7 +91,7 @@ class BookSetting(models.Model):
   book = models.ForeignKey(Book, on_delete=models.CASCADE)
 
   # book to specific date
-  book_to = models.DateField(null=True, blank=True)
+  # book_to = models.DateField(null=True, blank=True)
 
   # addiotionals
   tools = models.ManyToManyField(CourtAdditionalTool, null=True, blank=True)
