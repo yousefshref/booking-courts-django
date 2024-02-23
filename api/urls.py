@@ -9,35 +9,33 @@ urlpatterns = [
     path('register/', views.signup),
     path('login/', views.login),
 
-    path('get_user/', views.get_user),
-
-
     path('get_states/', views.get_states),
+    path('states/create/', views.create_state),
+    path('states/<int:state_id>/delete/', views.delete_state),
+    path('states/<int:state_id>/update/', views.update_state),
 
 
-    path('get_courts/', views.get_courts),
-    path('get_court/<int:pk>/', views.get_court),
+    path('user/', views.get_user),
 
 
-    path('court/tools/<int:court_id>/', views.get_court_additional_tools),
-    # admin
-    path('court/create/', views.create_court),
-    path('court/<int:court_id>/update/', views.update_court),
+    path('get_court_types/', views.get_court_types),
+    path('court_type/create/', views.create_type),
+    path('court_type/<int:type_id>/delete/', views.delete_type),
+    path('court_type/<int:type_id>/update/', views.update_type),
 
 
-    path('book/create/', views.create_book),
-    path('book/check/<int:court_id>/', views.check_book),
-    path('books/<int:user_id>/', views.get_user_books),
-    # admin
-    path('books/', views.get_books),
-    path('book/<int:book_id>/', views.get_book),
-    path('books_times/<int:court_id>/', views.get_book_times),
-
-    path('book/settings/<int:book_id>/', views.get_book_setting),
-    path('book/all_settings/<int:court_id>/', views.get_book_settings), # for booking the court get all settings
-    path('book/settings/<int:book_id>/update/', views.edit_book_settings),
+    path('courts/create/', views.create_court),
+    path('courts/', views.get_courts),
+    path('courts/<int:court_id>/', views.get_court),
+    path('courts/<int:court_id>/update/', views.court_update),
 
 
+    path('books/check/<int:court_id>/', views.check_while_booking),
+
+    path('books/create/', views.create_book),
+    path('books/', views.get_user_books),
+    path('books/<int:book_id>/', views.get_user_book),
+    path('books/<int:book_id>/update/', views.book_update),
 
 
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

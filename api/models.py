@@ -1,7 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.db.models.signals import post_save
-from django.dispatch import receiver
+
 
 class State(models.Model):
     name = models.CharField(max_length=155,null=True)
@@ -20,8 +19,13 @@ class CustomUser(AbstractUser):
 
 
 
+class CourtType(models.Model):
+   name = models.CharField(unique=True, db_index=True, max_length=100)
+
+
 class Court(models.Model):
   user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+  type = models.ForeignKey(CourtType, on_delete=models.CASCADE)
   state = models.ForeignKey(State, on_delete=models.CASCADE)
   title = models.CharField(max_length=155)
   description = models.TextField()
@@ -30,7 +34,13 @@ class Court(models.Model):
   open = models.TimeField()
   close = models.TimeField()
   location = models.URLField()
+
   # options
+  closed_from = models.TimeField(null=True, blank=True)
+  closed_to = models.TimeField(null=True, blank=True)
+
+  closed_now = models.BooleanField(default=False, null=True, blank=True)
+
   offer_price_per_hour = models.IntegerField(null=True, blank=True)
   offer_from = models.TimeField(null=True, blank=True)
   offer_to = models.TimeField(null=True, blank=True)
@@ -46,16 +56,19 @@ class Court(models.Model):
       return str(self.title)
 
 
-
 class CourtAdditional(models.Model):
-  user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
-  court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True)
+  court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True, related_name='additional_court')
+
 
 class CourtAdditionalTool(models.Model):
-  court_additional = models.ForeignKey(CourtAdditional, on_delete=models.CASCADE, null=True)
+  court_additional = models.ForeignKey(CourtAdditional, on_delete=models.CASCADE, null=True, related_name='tools_court')
   title = models.CharField(max_length=255)
   price = models.IntegerField()
-  
+
+
+
+
+
 
 
 
@@ -73,10 +86,50 @@ class Book(models.Model):
 
 
   def save(self, *args, **kwargs):
-      super(Book, self).save(*args, **kwargs)
+    court = Court.objects.get(pk=self.court.pk)
+    selected_times = BookTime.objects.filter(book__pk=self.pk)
+    settings = BookSetting.objects.get(book__pk=self.pk)
+
+    price = 0
+
+    if self.with_ball:
+        price += court.ball_price * len(selected_times)
+
+    if self.event:
+        price += court.event_price * len(selected_times)
+
+    if settings.tools:
+       for i in settings.tools.all():
+          price += i.price * len(selected_times)
+
+    for time in selected_times:
+        # offer
+        if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time.book_from) < str(court.offer_to)[:5]:
+          price += court.offer_price_per_hour
+        else:
+          price += court.price_per_hour
+
+    self.total_price = price
+
+    super(Book, self).save(*args, **kwargs)
 
   def __str__(self):
       return self.name
+
+
+
+class OverTime(models.Model):
+  book = models.ForeignKey(Book, on_delete=models.CASCADE, null=True, related_name='book_over_time')
+  book_from = models.TimeField(null=True, blank=True)
+  book_to = models.TimeField(null=True, blank=True)
+  note = models.TextField(null=True, blank=True)
+  price = models.IntegerField(null=True, blank=True)
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
+
+  def save(self, *args, **kwargs):
+    self.book.save()
+    super(OverTime, self).save(*args, **kwargs)
 
 
 class BookTime(models.Model):
@@ -84,14 +137,15 @@ class BookTime(models.Model):
   book_from = models.TimeField(null=True)
   book_to = models.TimeField(null=True)
   book_to_date = models.DateField(null=True, blank=True)
-   
+  book_to_date_cancel = models.DateField(null=True, blank=True) #cancel spesific day
+
+  def save(self, *args, **kwargs):
+    self.book.save()
+    super(BookTime, self).save(*args, **kwargs)
 
 
 class BookSetting(models.Model):
-  book = models.ForeignKey(Book, on_delete=models.CASCADE)
-
-  # book to specific date
-  # book_to = models.DateField(null=True, blank=True)
+  book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='book_setting')
 
   # addiotionals
   tools = models.ManyToManyField(CourtAdditionalTool, null=True, blank=True)
@@ -99,3 +153,4 @@ class BookSetting(models.Model):
   def save(self, *args, **kwargs):
       self.book.save()
       super(BookSetting, self).save(*args, **kwargs)
+
