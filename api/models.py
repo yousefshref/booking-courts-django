@@ -86,30 +86,33 @@ class Book(models.Model):
 
 
   def save(self, *args, **kwargs):
-    court = Court.objects.get(pk=self.court.pk)
-    selected_times = BookTime.objects.filter(book__pk=self.pk)
-    settings = BookSetting.objects.get(book__pk=self.pk)
+    try:
+      court = Court.objects.get(pk=self.court.pk)
+      selected_times = BookTime.objects.filter(book__pk=self.pk)
+      settings = BookSetting.objects.get(book__pk=self.pk)
 
-    price = 0
+      price = 0
 
-    if self.with_ball:
-        price += court.ball_price * len(selected_times)
+      if self.with_ball:
+          price += court.ball_price * len(selected_times)
 
-    if self.event:
-        price += court.event_price * len(selected_times)
+      if self.event:
+          price += court.event_price * len(selected_times)
 
-    if settings.tools:
-       for i in settings.tools.all():
-          price += i.price * len(selected_times)
+      if settings.tools:
+        for i in settings.tools.all():
+            price += i.price * len(selected_times)
 
-    for time in selected_times:
-        # offer
-        if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time.book_from) < str(court.offer_to)[:5]:
-          price += court.offer_price_per_hour
-        else:
-          price += court.price_per_hour
+      for time in selected_times:
+          # offer
+          if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time.book_from) < str(court.offer_to)[:5]:
+            price += court.offer_price_per_hour
+          else:
+            price += court.price_per_hour
 
-    self.total_price = price
+      self.total_price = price
+    except:
+       pass
 
     super(Book, self).save(*args, **kwargs)
 
