@@ -446,11 +446,11 @@ def check_while_booking(request, court_id):
 
 
 
-    book = models.BookSetting.objects.filter(book__court__id=court_id)
-    ser = serializers.BookSettingsSerializer(book, many=True)
+    # book = models.BookSetting.objects.filter(book__court__id=court_id)
+    # ser = serializers.BookSettingsSerializer(book, many=True)
 
     data = {
-        'settings':ser.data,
+        # 'settings':ser.data,
         'booked':book_times,
         'price_date':checkourt_date,
         'closed_times':closed_times,
