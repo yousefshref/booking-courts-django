@@ -6,28 +6,40 @@ from django.conf import settings
 
 urlpatterns = [
 
+
+    path('test/', views.test),
+
+
+
     path('register/', views.signup),
     path('login/', views.login),
 
     path('get_states/', views.get_states),
-    path('states/create/', views.create_state),
-    path('states/<int:state_id>/delete/', views.delete_state),
-    path('states/<int:state_id>/update/', views.update_state),
 
 
     path('user/', views.get_user),
 
 
     path('get_court_types/', views.get_court_types),
-    path('court_type/create/', views.create_type),
-    path('court_type/<int:type_id>/delete/', views.delete_type),
-    path('court_type/<int:type_id>/update/', views.update_type),
+    path('get_court_types_2/', views.get_court_types_2),
 
+
+
+
+    path('courts/images/create/', views.create_court_images),
+    path('courts/images/<int:image_id>/delete/', views.delete_court_images),
+
+    path('courts/videos/create/', views.create_court_videos),
+    path('courts/videos/<int:video_id>/delete/', views.delete_court_videos),
+    
+    path('courts/features/create/', views.create_court_features),
+    path('courts/features/<int:feature_id>/delete/', views.delete_court_feature),
 
     path('courts/create/', views.create_court),
     path('courts/', views.get_courts),
     path('courts/<int:court_id>/', views.get_court),
     path('courts/<int:court_id>/update/', views.court_update),
+    path('courts/<int:court_id>/delete/', views.court_delete),
 
 
     path('books/check/<int:court_id>/', views.check_while_booking),

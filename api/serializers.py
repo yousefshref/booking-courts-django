@@ -29,17 +29,48 @@ class CourtTypeSerializer(serializers.ModelSerializer):
         model = models.CourtType
         fields = '__all__'
 
+class CourtTypeTSerializer(serializers.ModelSerializer):
+    class Meta():
+        model = models.CourtTypeT
+        fields = '__all__'
+
+class CourtImageSerializer(serializers.ModelSerializer):
+    class Meta():
+        model = models.CourtImage
+        fields = '__all__'
+
+class CourtVideoSerializer(serializers.ModelSerializer):
+    class Meta():
+        model = models.CourtVideo
+        fields = '__all__'
+
+
+class CourtFeatureSerializer(serializers.ModelSerializer):
+    class Meta():
+        model = models.CourtFeature
+        fields = '__all__'
+
 class CourtSerializer(serializers.ModelSerializer):
     additional_court = CourtAdditionalSerializer(read_only=True, many=True)
     state_details = StateSerializer(read_only=True, source='state')
-    type_details = CourtTypeSerializer(read_only=True, source='type')
+    court_types = CourtTypeSerializer(read_only=True, source='type')
+    court_types2 = CourtTypeTSerializer(read_only=True, source='type2')
+    court_image = CourtImageSerializer(read_only=True, many=True)
+    court_video = CourtVideoSerializer(read_only=True, many=True)
+    court_features = CourtFeatureSerializer(read_only=True, many=True)
     class Meta():
         model = models.Court
         fields = '__all__'
 
 
 
+class BookSerializer_for_times(serializers.ModelSerializer):
+    class Meta():
+        model = models.Book
+        fields = '__all__'
+
 class BookTimeSerializer(serializers.ModelSerializer):
+    book_time = BookSerializer_for_times(read_only=True, source='book')
     class Meta():
         model = models.BookTime
         fields = '__all__'

@@ -4,14 +4,40 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 import json
-from django.db.models import F, Q
-from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
 
 from datetime import datetime, timedelta
 from . import serializers
 from . import models
+
+from moviepy.editor import VideoFileClip
+
+
+import smtplib
+
+
+@api_view(['POST'])
+def test(request):
+
+  # Replace with your email credentials
+  sender_email = "cookiy.inc@gmail.com"
+  receiver_email = "uousoft@gmail.com"
+  password = "rxmg vfui cglk arnj"
+
+  message = "This is a plain-text email sent from Python."
+
+  # Create a secure connection with the server (Gmail in this case)
+  with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+      server.login(sender_email, password)
+      server.sendmail(sender_email, receiver_email, message)
+
+  print("Email sent successfully!")
+
+  return Response({"":""})
+
+
 
 
 # -------------------------------------------------AUTH-------------------------------------------------------
@@ -55,41 +81,6 @@ def get_states(request):
 
 
 
-@api_view(['POST'])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
-@permission_classes([IsAuthenticated])
-def create_state(request):
-    ser = serializers.StateSerializer(data=request.data)
-    if ser.is_valid():
-        ser.save()
-        return Response(ser.data)
-    return Response(ser.errors)
-
-
-@api_view(['DELETE'])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
-@permission_classes([IsAuthenticated])
-def delete_state(request, state_id):
-    instance = models.State.objects.get(id=state_id)
-    instance.delete()
-    return Response({"success":True})
-
-
-
-@api_view(['PUT'])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
-@permission_classes([IsAuthenticated])
-def update_state(request, state_id):
-    instance = models.State.objects.get(id=state_id)
-    ser = serializers.StateSerializer(instance, data=request.data, partial=True)
-    if ser.is_valid():
-        ser.save()
-        return Response(ser.data)
-    return Response(ser.errors)
-
-
-
-
 
 
 # -------------------------------------------------USER-------------------------------------------------------
@@ -108,40 +99,6 @@ def get_user(request):
 # -------------------------------------------------COURT-------------------------------------------------------
 
 
-@api_view(['POST'])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
-@permission_classes([IsAuthenticated])
-def create_type(request):
-    ser = serializers.CourtTypeSerializer(data=request.data)
-    if ser.is_valid():
-        ser.save()
-        return Response(ser.data)
-    return Response(ser.errors)
-
-
-@api_view(['DELETE'])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
-@permission_classes([IsAuthenticated])
-def delete_type(request, type_id):
-    instance = models.CourtType.objects.get(id=type_id)
-    instance.delete()
-    return Response({"success":True})
-
-
-
-@api_view(['PUT'])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
-@permission_classes([IsAuthenticated])
-def update_type(request, type_id):
-    instance = models.CourtType.objects.get(id=type_id)
-    ser = serializers.CourtTypeSerializer(instance, data=request.data, partial=True)
-    if ser.is_valid():
-        ser.save()
-        return Response(ser.data)
-    return Response(ser.errors)
-
-
-
 
 
 @api_view(['GET'])
@@ -151,6 +108,84 @@ def get_court_types(request):
     states = models.CourtType.objects.all()
     ser = serializers.CourtTypeSerializer(states, many=True)
     return Response(ser.data)
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_court_types_2(request):
+    states = models.CourtTypeT.objects.all()
+    ser = serializers.CourtTypeTSerializer(states, many=True)
+    return Response(ser.data)
+
+
+
+
+
+
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def create_court_videos(request):
+  ser = serializers.CourtVideoSerializer(data=request.data)
+  if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+  return Response(ser.errors)
+  # return Response({"":""})
+
+
+
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def delete_court_videos(request, video_id):
+    video = models.CourtVideo.objects.get(pk=video_id)
+    video.delete()
+    return Response({"success":True})
+
+
+
+
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def create_court_images(request):
+    ser = serializers.CourtImageSerializer(data=request.data)
+    if ser.is_valid():
+        ser.save()
+        return Response(ser.data)
+    return Response(ser.errors)
+
+
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def delete_court_images(request, image_id):
+    image = models.CourtImage.objects.get(pk=image_id)
+    image.delete()
+    return Response({"success":True})
+
+
+
+
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def create_court_features(request):
+    ser = serializers.CourtFeatureSerializer(data=request.data)
+    if ser.is_valid():
+        ser.save()
+        return Response(ser.data)
+    return Response(ser.errors)
+
+
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def delete_court_feature(request, feature_id):
+    image = models.CourtFeature.objects.get(pk=feature_id)
+    image.delete()
+    return Response({"success":True})
 
 
 
@@ -163,13 +198,16 @@ def create_additional_tools(additional_id, tools):
           price=i['price'],
         )
         tool.save()
-    
+
+      
 def create_court_additional(court_id, tools):
     court_additional = models.CourtAdditional(
         court_id=court_id,
     )
     court_additional.save()
     create_additional_tools(court_additional.pk, tools)
+
+
 
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
@@ -178,9 +216,18 @@ def create_court(request):
     ser = serializers.CourtSerializer(data=request.data)
     if ser.is_valid():
         ser.save()
-        create_court_additional(ser.data['id'], request.data['tools'])
+        create_court_additional(ser.data['id'], request.data.get('tools'))
         return Response(ser.data)
     return Response(ser.errors)
+
+
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_delete(request, court_id):
+    court = models.Court.objects.get(pk=court_id)
+    court.delete()
+    return Response({"success":True})
 
 
 @api_view(['GET'])
@@ -188,6 +235,28 @@ def create_court(request):
 @permission_classes([IsAuthenticated])
 def get_courts(request):
     courts = models.Court.objects.all()
+    
+    if request.user.is_superuser:
+      courts = models.Court.objects.filter(user=request.user)
+
+    search = request.GET.get('search')
+    state = request.GET.get('state')
+    type = request.GET.get('type')
+    type2 = request.GET.get('type2')
+
+    if search:
+        courts = courts.filter(title__icontains=search)
+
+    if state:
+        courts = courts.filter(state__id=state)
+
+    if type:
+        courts = courts.filter(type__id=type)
+
+    if type2:
+        courts = courts.filter(type2__id=type2)
+    
+
     ser = serializers.CourtSerializer(courts, many=True)
     return Response(ser.data)
 
@@ -229,15 +298,16 @@ def get_court(request, court_id):
 
     # get booked times of this court
     current_date = datetime.now().date()
-    books = models.BookTime.objects.filter(
-    Q(book__court__id=court_id) &
-    (Q(book__book_date=current_date) | Q(book_to_date__gte=current_date))
-)
-    books_ser = serializers.BookTimeSerializer(books, many=True)
+    book_times = models.BookTime.objects.filter(
+      Q(book__court__id=court_id) &
+      (Q(book__book_date=current_date) | Q(book_to_date__gte=current_date))
+    )
+    book_times_ser = serializers.BookTimeSerializer(book_times, many=True)
+
 
     data = {
         "court":court_ser.data,
-        "booked_times":books_ser.data,
+        "booked_times":book_times_ser.data,
         "slots":generate_hourly_intervals(datetime.strptime(str(court.open), "%H:%M:%S"), datetime.strptime(str(court.close), "%H:%M:%S"))
     }
     return Response(data)
@@ -312,6 +382,7 @@ def create_book_times(book_id, times):
         )
         instance.save()
 
+
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -333,6 +404,9 @@ def create_book(request):
 @permission_classes([IsAuthenticated])
 def get_user_books(request):
     books = models.Book.objects.filter(user=request.user)
+    search = request.GET.get('search')
+    if search:
+        books = books.filter(Q(name__icontains=search) | Q(phone__icontains=search))
     ser = serializers.BookSerializer(books, many=True)
     return Response(ser.data)
 
@@ -383,7 +457,8 @@ def check_while_booking(request, court_id):
         time1 = time.book_from
         time2 = time.book_to
 
-        f_condition = slot1 == str(time1) and slot2 == str(time2) and str(time.book.book_date) == court_date and str(time.book_to) > str(datetime.now().time())[:5]
+        # f_condition = slot1 == str(time1) and slot2 == str(time2) and str(time.book.book_date) == court_date and str(time.book_to) > str(datetime.now().time())[:5]
+        f_condition = slot1 == str(time1) and slot2 == str(time2) and str(time.book.book_date) == court_date
         s_condition = time.book_to_date != None and str(time.book_to_date) >= court_date and slot1 == str(time1) and slot2 == str(time2)
         t_condition = time.book_to_date != None and str(time.book.book_date) == court_date and str(time.book_to_date) >= court_date and slot1 == str(time1) and slot2 == str(time2)
         fourth_condition = time.book_to_date == None and str(time.book.book_date) == court_date and slot1 == str(time1) and slot2 == str(time2) and str(time.book_to) > str(datetime.now().time())[:5]

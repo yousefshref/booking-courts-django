@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
+import subprocess
 
 class State(models.Model):
     name = models.CharField(max_length=155,null=True)
@@ -9,7 +10,6 @@ class State(models.Model):
         return self.name
 
 class CustomUser(AbstractUser):
-    state = models.ForeignKey(State, on_delete=models.CASCADE, null=True, blank=True)
     email = models.EmailField(unique=True, db_index=True)
     phone = models.IntegerField(null=True)
 
@@ -20,17 +20,21 @@ class CustomUser(AbstractUser):
 
 
 class CourtType(models.Model):
-   name = models.CharField(unique=True, db_index=True, max_length=100)
+  name = models.CharField(unique=True, db_index=True, max_length=100)
+
+class CourtTypeT(models.Model):
+  name = models.CharField(unique=True, db_index=True, max_length=100)
 
 
 class Court(models.Model):
   user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-  type = models.ForeignKey(CourtType, on_delete=models.CASCADE)
+  type = models.ForeignKey(CourtType, on_delete=models.CASCADE, null=True)
+  type2 = models.ForeignKey(CourtTypeT, on_delete=models.CASCADE, null=True)
   state = models.ForeignKey(State, on_delete=models.CASCADE)
   title = models.CharField(max_length=155)
   description = models.TextField()
   price_per_hour = models.IntegerField()
-  image = models.ImageField(upload_to='images/')
+  # image = models.ImageField(upload_to='images/')
   open = models.TimeField()
   close = models.TimeField()
   location = models.URLField()
@@ -56,6 +60,48 @@ class Court(models.Model):
       return str(self.title)
 
 
+
+
+class CourtFeature(models.Model):
+  court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True, related_name='court_features')
+  feature = models.CharField(max_length=155)
+  is_free = models.BooleanField(default=False)
+  is_available = models.BooleanField(null=True, default=True)
+
+
+
+
+class CourtImage(models.Model):
+  court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True, related_name='court_image')
+  image = models.ImageField(upload_to='courts/images/', null=True, blank=True)
+
+
+class CourtVideo(models.Model):
+  court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True, related_name='court_video')
+  video = models.FileField(upload_to='videos/', null=True, blank=True)
+
+
+  def save(self, *args, **kwargs):
+    super(CourtVideo, self).save(*args, **kwargs)
+    input_file = f"http://127.0.0.1:8000/{self.video}"  # Replace with your video path
+    # # input_file = video  # Replace with your video path
+    output_file = f"{self.video.name}"  # Desired output path
+    # output_file = f"commresd.mp4"  # Desired output path
+
+    # Set desired video bitrate (adjust as needed)
+    video_bitrate = "800k"
+
+    # Construct the command
+    command = f"ffmpeg -y -i {input_file} -b:v {video_bitrate} {output_file}"
+
+    subprocess.run(command, shell=True)
+
+
+
+
+
+
+
 class CourtAdditional(models.Model):
   court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True, related_name='additional_court')
 
@@ -71,6 +117,10 @@ class CourtAdditionalTool(models.Model):
 
 
 
+paied_choices = (
+   ('E_Wallet', 'E_Wallet'),
+   ('Cash', 'Cash'),
+)
 
 class Book(models.Model):
   user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
@@ -80,6 +130,11 @@ class Book(models.Model):
   book_date = models.DateField()
   with_ball = models.BooleanField()
   event = models.BooleanField()
+
+  
+  paied = models.CharField(max_length=155, choices=paied_choices)
+  
+
   total_price = models.IntegerField(null=True, blank=True)
   created_at = models.DateTimeField(auto_now_add=True)
   updated_at = models.DateTimeField(auto_now=True)

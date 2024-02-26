@@ -1,0 +1,10 @@
+Date: 25/2/2024
+Time: 16:37
+Phone Number: +201023455435
+Message: Hello from Python!
+--------------------
+Date: 25/2/2024
+Time: 16:38
+Phone Number: +201023455435
+Message: Hello from Python!
+--------------------
