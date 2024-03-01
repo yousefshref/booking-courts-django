@@ -42,6 +42,12 @@ def test(request):
 
 # -------------------------------------------------AUTH-------------------------------------------------------
 
+def create_settings(user_id):
+    instance = models.Setting(
+        user_id=user_id
+    )
+    instance.save()
+
 @api_view(['POST'])
 def signup(request):
     serializer = serializers.UserSerializer(data=request.data)
@@ -50,6 +56,8 @@ def signup(request):
         user = models.CustomUser.objects.get(username=request.data['username'])
         user.set_password(request.data['password'])
         user.save()
+        if user.is_superuser:
+            create_settings(user.pk)
         token = Token.objects.create(user=user)
         return Response({'token': token.key, 'user': serializer.data})
     return Response(serializer.errors, status=status.HTTP_200_OK)
@@ -237,7 +245,17 @@ def get_courts(request):
     courts = models.Court.objects.all()
     
     if request.user.is_superuser:
-      courts = models.Court.objects.filter(user=request.user)
+      courts = models.Court.objects.filter(Q(user=request.user) | Q(user__staff_for=request.user))
+
+    if request.user.is_staff:
+      manager = models.CustomUser.objects.get(id=request.user.staff_for.pk)
+      all_staffs = models.CustomUser.objects.filter(staff_for__pk=manager.pk)
+
+      ids = []
+      for i in all_staffs.all():
+        ids.append(i.pk)
+      
+      courts = models.Court.objects.filter(Q(user=request.user.staff_for) | Q(user__id__in=ids))
 
     search = request.GET.get('search')
     state = request.GET.get('state')
@@ -257,7 +275,7 @@ def get_courts(request):
         courts = courts.filter(type2__id=type2)
     
 
-    ser = serializers.CourtSerializer(courts, many=True)
+    ser = serializers.CourtSerializer(courts.order_by('-id'), many=True)
     return Response(ser.data)
 
 
@@ -289,6 +307,7 @@ def generate_hourly_intervals(start_time, end_time):
 
     return intervals
 
+
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -296,19 +315,89 @@ def get_court(request, court_id):
     court = models.Court.objects.get(pk=court_id)
     court_ser = serializers.CourtSerializer(court)
 
+    # admin
+    # all stafs of this admin
+    book_times = models.BookTime.objects.filter(Q(book__court__id=court_id)).order_by('-id')
+
+    if request.user.is_superuser:
+      all_staffs = models.CustomUser.objects.filter(staff_for=request.user)
+      ids=[]
+      for i in all_staffs.all():
+          ids.append(i.pk)
+      book_times.filter(Q(book__court__user=request.user) | Q(book__court__user__id__in=ids))
+
+    if request.user.is_staff:
+      admin = models.CustomUser.objects.get(pk=request.user.staff_for.pk)
+      all_staffs = models.CustomUser.objects.filter(staff_for=admin)
+      ids=[]
+      for i in all_staffs.all():
+          ids.append(i.pk)
+      book_times.filter(Q(book__court__user=admin) | Q(book__court__user__id__in=ids))
+
+
+        
+
+
+
+    # filter and search
     # get booked times of this court
+    # book_times = models.BookTime.objects.filter(
+    #   Q(book__court__id=court_id) &
+    #   (Q(book__book_date=current_date) | Q(book_to_date__gte=current_date))
+    # )    
     current_date = datetime.now().date()
-    book_times = models.BookTime.objects.filter(
-      Q(book__court__id=court_id) &
-      (Q(book__book_date=current_date) | Q(book_to_date__gte=current_date))
-    )
+    book_times = book_times.filter(
+      Q(book__book_date=current_date) | Q(book_to_date__gte=current_date)
+    )    
+    book_date = request.GET.get('book_date')
+    if book_date:
+        book_times = book_times.filter((Q(book__book_date=book_date) | Q(book_to_date__gte=book_date) & Q(book__book_date__lte=book_date)))
+        
+    event = request.GET.get('event')
+    if event == 'True':
+        book_times = book_times.filter((Q(book__event=True)))
+
+    search = request.GET.get('search')
+    if search:
+        book_times = book_times.filter((Q(book__name__icontains=search) | Q(book__phone__icontains=search)))
+
+    paied_with = request.GET.get('paied_with')
+    if paied_with:
+        book_times = book_times.filter((Q(book__paied=paied_with)))
+
+    is_paied = request.GET.get('is_paied')
+    if is_paied:
+        book_times = book_times.filter((Q(book__is_paied=is_paied)))
+
     book_times_ser = serializers.BookTimeSerializer(book_times, many=True)
 
+
+    # get warning before booking
+    court_settings = models.Setting.objects.get(Q(user=court.user) | Q(user=court.user.staff_for))
+
+    if request.user.is_superuser:
+      all_staff = models.CustomUser.objects.filter(staff_for=request.user)
+      ids = []
+      for i in all_staff.all():
+          ids.append(i.pk)
+      court_settings = models.Setting.objects.get(Q(user=request.user) | Q(user__id__in=ids))
+
+    if request.user.is_staff:
+      admin = models.CustomUser.objects.get(pk=request.user.staff_for.pk)
+      all_staff = models.CustomUser.objects.filter(staff_for=admin)
+      ids = []
+      for i in all_staff.all():
+          ids.append(i.pk)
+      court_settings = models.Setting.objects.get(Q(user=admin) | Q(user__id__in=ids))
+
+ 
+    print(generate_hourly_intervals(datetime.strptime(str(court.open), "%H:%M:%S"), datetime.strptime(str(court.close), "%H:%M:%S")))
 
     data = {
         "court":court_ser.data,
         "booked_times":book_times_ser.data,
-        "slots":generate_hourly_intervals(datetime.strptime(str(court.open), "%H:%M:%S"), datetime.strptime(str(court.close), "%H:%M:%S"))
+        "slots":generate_hourly_intervals(datetime.strptime(str(court.open), "%H:%M:%S"), datetime.strptime(str(court.close), "%H:%M:%S")),
+        "paying_warning":court_settings.paying_warning,
     }
     return Response(data)
 
@@ -390,6 +479,9 @@ def create_book(request):
     data = request.data.copy()
     data['user'] = request.user.pk
 
+    # if data['paied'] == 'Cash' and (request.user.is_staff or request.user.is_superuser):
+    #   data['is_paied'] = True
+      
     ser = serializers.BookSerializer(data=data)
     if ser.is_valid():
         book = ser.save()
@@ -403,12 +495,29 @@ def create_book(request):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_user_books(request):
-    books = models.Book.objects.filter(user=request.user)
-    search = request.GET.get('search')
-    if search:
-        books = books.filter(Q(name__icontains=search) | Q(phone__icontains=search))
-    ser = serializers.BookSerializer(books, many=True)
-    return Response(ser.data)
+
+  books = models.Book.objects.all()
+
+  if request.user.is_superuser:
+    all_stafs = models.CustomUser.objects.filter(staff_for=request.user)
+    books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=all_stafs))
+
+  if request.user.is_staff:
+    all_stafs = models.CustomUser.objects.filter(staff_for=request.user.staff_for)
+    books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=all_stafs))
+
+
+  if not request.user.is_staff and not request.user.is_superuser:
+    books = books.filter(Q(user=request.user))
+     
+
+      
+  search = request.GET.get('search')
+  if search:
+      books = books.filter(Q(name__icontains=search) | Q(phone__icontains=search))
+      
+  ser = serializers.BookSerializer(books, many=True)
+  return Response(ser.data)
 
 
 @api_view(['GET'])
@@ -416,13 +525,13 @@ def get_user_books(request):
 @permission_classes([IsAuthenticated])
 def get_user_book(request, book_id):
 
-    if request.user.is_superuser:
+    if request.user.is_superuser or request.user.is_staff:
       book = models.Book.objects.get(pk=book_id)
     else:
       book = models.Book.objects.get(user=request.user, pk=book_id)
         
     book_ser = serializers.BookSerializer(book)
-    return Response(book_ser.data,)
+    return Response(book_ser.data)
 
 
 
@@ -470,7 +579,6 @@ def check_while_booking(request, court_id):
 
 
 
-
     # get closed times
     closed_times = []
 
@@ -479,8 +587,6 @@ def check_while_booking(request, court_id):
         slot2 = convert_to_24_hour_format(slot.split('-')[1])
         if court.closed_from and str(court.closed_from)[:5] <= slot1 < str(court.closed_to)[:5]:
             closed_times.append(f"{slot1}-{slot2}")
-
-
 
 
 
@@ -499,17 +605,24 @@ def check_while_booking(request, court_id):
         ball += court.ball_price * len(selected_times)
         price += court.ball_price * len(selected_times)
 
-    if event == 'true' and court.event:
-        event_price += court.event_price * len(selected_times)
-        price += court.event_price * len(selected_times)
+    # if event == 'true' and court.event:
+    #     event_price += court.event_price * len(selected_times)
+    #     price += court.event_price * len(selected_times)
 
     for time in selected_times:
+        # event
+        if court.event == True and event == 'true' and court.event_price != 0 and str(court.event_from)[:5] <= str(time['book_from']) < str(court.event_to)[:5]:
+          event_price += court.event_price
+          price += court.event_price
+
         # offer
         if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time['book_from']) < str(court.offer_to)[:5]:
           offers_prices += court.offer_price_per_hour
           price += court.offer_price_per_hour
-        else:
-          price += court.price_per_hour
+        
+        price += court.price_per_hour
+        
+
 
     checkourt_date = {
         "total_price":price,
@@ -517,7 +630,6 @@ def check_while_booking(request, court_id):
         "event_price":event_price,
         "offers_prices":offers_prices,
     }
-
 
 
 
@@ -635,4 +747,148 @@ def book_update(request, book_id):
 
         return Response(ser.data)
     return Response(ser.errors)
+
+
+
+
+
+
+
+
+
+
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_settings(request):
+
+  settings = models.Setting.objects.all()
+
+  if request.user.is_superuser:
+    settings = models.Setting.objects.get(Q(user=request.user))
+
+  if request.user.is_staff:
+    all_stafs = models.CustomUser.objects.filter(staff_for=request.user.staff_for)
+    settings = models.Setting.objects.get(Q(user=request.user.staff_for) | Q(user__id__in=all_stafs))
+
+  ser = serializers.SettingSerializer(settings)
+  return Response(ser.data)
+
+
+@api_view(['PUT'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def update_settings(request):
+
+  if request.user.is_superuser:
+    settings = models.Setting.objects.get(user=request.user)
+
+  if request.user.is_staff:
+    settings = models.Setting.objects.get(user=request.user.staff_for)
+
+  ser = serializers.SettingSerializer(settings, data=request.data, partial=True)
+  if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+  return Response(ser.errors)
+  
+
+
+
+
+
+
+
+
+
+
+
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def create_staff(request):
+    if request.user.is_superuser:
+      ser = serializers.UserSerializer(data=request.data)
+      if ser.is_valid():
+          ser.save()
+          return Response(ser.data)
+      return Response(ser.errors)
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_staffs(request):
+    if request.user.is_superuser:
+      staffs = models.CustomUser.objects.filter(staff_for__pk=request.user.pk)
+      ser = serializers.UserSerializer(staffs, many=True)
+      return Response(ser.data)
+
+
+
+
+
+
+
+
+
+# staffs permissions
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def staff_details(request, staff_id):
+  if request.user.is_superuser:
+    # get his information
+    staff = models.CustomUser.objects.get(pk=staff_id)
+    staff_ser = serializers.UserSerializer(staff)
+
+    # get his courts
+    staff_courts = models.Court.objects.filter(user=staff)
+    court_ser = serializers.CourtSerializer(staff_courts, many=True)
+
+    # get his books - with total pricing
+    staff_books = models.Book.objects.filter(user=staff)
+
+    if request.GET.get('date_from') and request.GET.get('date_to'):
+       staff_books = staff_books.filter(book_date__range=[request.GET.get('date_from'), request.GET.get('date_to')])
+
+    book_ser = serializers.BookSerializer(staff_books, many=True)
+
+    books_total_earning_paied = 0
+    books_total_earning_not_paied = 0
+
+    for i in staff_books.all():
+      if i.is_paied:
+         books_total_earning_paied += i.total_price
+
+      if not i.is_paied:
+         books_total_earning_not_paied += i.total_price
+
+
+    data = {
+       "staff_details":staff_ser.data,
+       "staff_courts":court_ser.data,
+       "staff_books":book_ser.data,
+       "staff_books_summerize":{
+          "total_paied":books_total_earning_paied,
+          "total_not_paied":books_total_earning_not_paied,
+       },
+    }      
+
+    return Response({"data":data})
+  return Response({"error":"redirect"})
+
+
+
+
+
+
+
+
+
+
+
+
 

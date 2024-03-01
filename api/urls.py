@@ -42,12 +42,25 @@ urlpatterns = [
     path('courts/<int:court_id>/delete/', views.court_delete),
 
 
+
+
     path('books/check/<int:court_id>/', views.check_while_booking),
+
 
     path('books/create/', views.create_book),
     path('books/', views.get_user_books),
     path('books/<int:book_id>/', views.get_user_book),
     path('books/<int:book_id>/update/', views.book_update),
+
+
+    path('settings/', views.get_settings),
+    path('settings/update/', views.update_settings),
+
+
+
+
+    path('staffs/', views.get_staffs),
+    path('staffs/<int:staff_id>/', views.staff_details),
 
 
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
