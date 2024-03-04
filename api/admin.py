@@ -23,4 +23,5 @@ admin.site.register(models.BookSetting)
 admin.site.register(models.BookTime)
 
 
+admin.site.register(models.Number)
 admin.site.register(models.Setting)

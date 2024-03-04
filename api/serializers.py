@@ -101,6 +101,11 @@ class BookSerializer(serializers.ModelSerializer):
 
 
 
+class NumbergSerializer(serializers.ModelSerializer):
+    class Meta():
+        model = models.Number
+        fields = '__all__'
+
 class SettingSerializer(serializers.ModelSerializer):
     class Meta():
         model = models.Setting

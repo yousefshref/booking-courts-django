@@ -7,35 +7,10 @@ import json
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework.authtoken.models import Token
-
 from datetime import datetime, timedelta
 from . import serializers
 from . import models
 
-from moviepy.editor import VideoFileClip
-
-
-import smtplib
-
-
-@api_view(['POST'])
-def test(request):
-
-  # Replace with your email credentials
-  sender_email = "cookiy.inc@gmail.com"
-  receiver_email = "uousoft@gmail.com"
-  password = "rxmg vfui cglk arnj"
-
-  message = "This is a plain-text email sent from Python."
-
-  # Create a secure connection with the server (Gmail in this case)
-  with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-      server.login(sender_email, password)
-      server.sendmail(sender_email, receiver_email, message)
-
-  print("Email sent successfully!")
-
-  return Response({"":""})
 
 
 
@@ -280,10 +255,19 @@ def get_courts(request):
 
 
 
+
 def generate_hourly_intervals(start_time, end_time):
     # Check if start_time and end_time are datetime objects
     if not isinstance(start_time, datetime) or not isinstance(end_time, datetime):
         raise ValueError("start_time and end_time must be datetime objects.")
+
+    # Check if start_time and end_time are the same
+    if start_time == end_time:
+        # Define the ending interval
+        end_interval = end_time + timedelta(hours=1)
+
+        # Return a single interval that covers the entire hour
+        return [f"{start_time.strftime('%H:%M:%S')}-{end_interval.strftime('%H:%M:%S')}"]
 
     # Initialize an empty array to store the intervals
     intervals = []
@@ -294,8 +278,8 @@ def generate_hourly_intervals(start_time, end_time):
     # Define the ending interval
     end_interval = end_time.replace(minute=0, second=0, microsecond=0)
 
-    # Loop through each hour between start_time and end_time
-    while current_interval_start < end_interval:
+    # Loop through each hour between start_time and end_time (including end_time)
+    while current_interval_start <= end_interval:
         # Define the ending interval as the next hour after the current interval
         current_interval_end = current_interval_start + timedelta(hours=1)
 
@@ -303,10 +287,9 @@ def generate_hourly_intervals(start_time, end_time):
         intervals.append(f"{current_interval_start.strftime('%H:%M:%S')}-{current_interval_end.strftime('%H:%M:%S')}")
 
         # Update the current interval
-        current_interval_start = current_interval_end
+        current_interval_start = current_interval_start + timedelta(hours=1)
 
     return intervals
-
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
@@ -335,24 +318,17 @@ def get_court(request, court_id):
       book_times.filter(Q(book__court__user=admin) | Q(book__court__user__id__in=ids))
 
 
-        
-
-
-
     # filter and search
-    # get booked times of this court
-    # book_times = models.BookTime.objects.filter(
-    #   Q(book__court__id=court_id) &
-    #   (Q(book__book_date=current_date) | Q(book_to_date__gte=current_date))
-    # )    
-    current_date = datetime.now().date()
-    book_times = book_times.filter(
-      Q(book__book_date=current_date) | Q(book_to_date__gte=current_date)
-    )    
     book_date = request.GET.get('book_date')
     if book_date:
         book_times = book_times.filter((Q(book__book_date=book_date) | Q(book_to_date__gte=book_date) & Q(book__book_date__lte=book_date)))
-        
+    
+    if not book_date:
+      current_date = datetime.now().date()
+      book_times = book_times.filter(
+        Q(book__book_date=current_date) | Q(book_to_date__gte=current_date)
+      ) 
+
     event = request.GET.get('event')
     if event == 'True':
         book_times = book_times.filter((Q(book__event=True)))
@@ -370,6 +346,10 @@ def get_court(request, court_id):
         book_times = book_times.filter((Q(book__is_paied=is_paied)))
 
     book_times_ser = serializers.BookTimeSerializer(book_times, many=True)
+
+
+
+
 
 
     # get warning before booking
@@ -390,14 +370,17 @@ def get_court(request, court_id):
           ids.append(i.pk)
       court_settings = models.Setting.objects.get(Q(user=admin) | Q(user__id__in=ids))
 
- 
-    print(generate_hourly_intervals(datetime.strptime(str(court.open), "%H:%M:%S"), datetime.strptime(str(court.close), "%H:%M:%S")))
+
+    # get numbers can pay later
+    numbers = models.Number.objects.filter(setting=court_settings)
+    numbers_ser = serializers.NumbergSerializer(numbers, many=True)
 
     data = {
         "court":court_ser.data,
         "booked_times":book_times_ser.data,
         "slots":generate_hourly_intervals(datetime.strptime(str(court.open), "%H:%M:%S"), datetime.strptime(str(court.close), "%H:%M:%S")),
         "paying_warning":court_settings.paying_warning,
+        "numbers":numbers_ser.data,
     }
     return Response(data)
 
@@ -520,6 +503,12 @@ def get_user_books(request):
   return Response(ser.data)
 
 
+def convert_to_days_and_add_to_date(hours, input_date):
+  days = int(hours / 24)  # Convert hours to whole days
+  new_date = input_date + timedelta(days=days)
+  return new_date
+
+
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -529,9 +518,27 @@ def get_user_book(request, book_id):
       book = models.Book.objects.get(pk=book_id)
     else:
       book = models.Book.objects.get(user=request.user, pk=book_id)
-        
+
     book_ser = serializers.BookSerializer(book)
-    return Response(book_ser.data)
+
+    # get if can be deleted
+    settings = models.Setting.objects.get(Q(user=book.court.user) | Q(user=book.court.user.staff_for))
+    book_created_at = book.created_at
+    # days_time
+    time_to_cancel = settings.cancel_time_limit
+    # limited day
+    limited_date = convert_to_days_and_add_to_date(time_to_cancel, book_created_at)
+    # compare
+    limited_date_formated = datetime.strptime(str(limited_date), "%Y-%m-%d %H:%M:%S.%f%z").strftime("%Y-%m-%d")
+    todays_date = datetime.strptime(str(datetime.today()), "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d")
+
+    can_delete = todays_date < limited_date_formated
+
+    data = {
+       "book":book_ser.data,
+       "can_delete":can_delete
+    }
+    return Response(data)
 
 
 
@@ -605,22 +612,19 @@ def check_while_booking(request, court_id):
         ball += court.ball_price * len(selected_times)
         price += court.ball_price * len(selected_times)
 
-    # if event == 'true' and court.event:
-    #     event_price += court.event_price * len(selected_times)
-    #     price += court.event_price * len(selected_times)
 
     for time in selected_times:
-        # event
-        if court.event == True and event == 'true' and court.event_price != 0 and str(court.event_from)[:5] <= str(time['book_from']) < str(court.event_to)[:5]:
-          event_price += court.event_price
-          price += court.event_price
+      # event
+      if court.event == True and event == 'true' and court.event_price != 0 and str(court.event_from)[:5] <= str(time['book_from']) < str(court.event_to)[:5]:
+        event_price += court.event_price
+        price += court.event_price
 
-        # offer
-        if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time['book_from']) < str(court.offer_to)[:5]:
-          offers_prices += court.offer_price_per_hour
-          price += court.offer_price_per_hour
-        
-        price += court.price_per_hour
+      # offer
+      if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time['book_from']) < str(court.offer_to)[:5]:
+        offers_prices += court.offer_price_per_hour
+        price += court.offer_price_per_hour
+      
+      price += court.price_per_hour
         
 
 
@@ -750,13 +754,51 @@ def book_update(request, book_id):
 
 
 
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def book_delete(request, book_id):
+  book = models.Book.objects.get(id=book_id)
+  setting = models.Setting.objects.get(Q(user=book.court.user) | Q(user=book.court.user.staff_for))
+  book.delete()
+  setting.save()
+  return Response({"success":True})
 
 
 
 
 
+@api_view(['GET'])
+def get_numbers(request, setting_id):
+  try:
+    numbers = models.Number.objects.filter(setting__id=setting_id)
+    ser = serializers.NumbergSerializer(numbers, many=True)
+    return Response(ser.data)
+  except:
+    return Response({"error":"Not Found"})
 
 
+@api_view(['DELETE'])
+def delete_numbers(request, number_id):
+  try:
+    numbers = models.Number.objects.filter(id=number_id)
+    numbers.delete()
+    return Response({"success":True})
+  except:
+    return Response({"error":"Not Found"})
+
+
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def create_number(request):
+  ser = serializers.NumbergSerializer(data=request.data)
+  if ser.is_valid():
+    ser.save()
+    return Response(ser.data)
+  return Response(ser.errors)
+ 
+   
 
 
 @api_view(['GET'])
@@ -764,6 +806,9 @@ def book_update(request, book_id):
 @permission_classes([IsAuthenticated])
 def get_settings(request):
 
+  path = request.GET.get('path')
+
+  # get settings
   settings = models.Setting.objects.all()
 
   if request.user.is_superuser:
@@ -772,9 +817,61 @@ def get_settings(request):
   if request.user.is_staff:
     all_stafs = models.CustomUser.objects.filter(staff_for=request.user.staff_for)
     settings = models.Setting.objects.get(Q(user=request.user.staff_for) | Q(user__id__in=all_stafs))
-
+  
   ser = serializers.SettingSerializer(settings)
-  return Response(ser.data)
+
+
+  # CHECK BOOKS TIME LIMITED TO PAY
+  # books created date
+  books = models.Book.objects.all()
+  if request.user.is_superuser:
+    staffs = models.CustomUser.objects.filter(staff_for=request.user)
+    ids=[]
+    for i in staffs.all():
+       ids.append(i.pk)
+    books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=ids))
+  
+  if request.user.is_staff:
+    staffs = models.CustomUser.objects.filter(staff_for=request.user.staff_for)
+    ids=[]
+    for i in staffs.all():
+       ids.append(i.pk)
+    books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=ids))
+
+  deleted_books = []
+  try:
+    if settings.paying_time_limit != None and int(settings.paying_time_limit) > 0:
+      for book in books:
+        # limited time
+        limited_time_to_pay = settings.paying_time_limit
+        # created time
+        created_book_time = book.created_at
+        # add limited to created book time
+        limited_date_to_pay = convert_to_days_and_add_to_date(limited_time_to_pay, created_book_time)
+        # compare
+        limited_date_formated = datetime.strptime(str(limited_date_to_pay), "%Y-%m-%d %H:%M:%S.%f%z").strftime("%Y-%m-%d")
+        todays_date = datetime.strptime(str(datetime.today()), "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d")
+
+        if limited_date_formated < todays_date and not book.is_paied:
+          #  delete book
+          if path == '/profile' and (request.user.is_superuser or request.user.is_staff):
+            deleted_books.append({
+              "user": book.user.username,
+              "name": book.name,
+              "phone": book.phone,
+              "court": book.court.title,
+              "created_at": str(book.created_at),
+              "book_date": str(book.book_date),
+            })
+            book.delete()
+            settings.save()
+  except:
+     pass
+  data = {
+     "settings":ser.data,
+     "deleted_books":deleted_books
+  }
+  return Response(data)
 
 
 @api_view(['PUT'])

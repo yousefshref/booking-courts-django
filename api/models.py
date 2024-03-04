@@ -52,7 +52,7 @@ class Court(models.Model):
   offer_price_per_hour = models.IntegerField(null=True, blank=True)
   offer_from = models.TimeField(null=True, blank=True)
   offer_to = models.TimeField(null=True, blank=True)
-  with_ball = models.BooleanField(default=True,null=True)
+  with_ball = models.BooleanField(default=False,null=True)
   ball_price = models.IntegerField(null=True, blank=True)
   event = models.BooleanField(default=False,null=True)
   event_price = models.IntegerField(null=True, blank=True)
@@ -228,11 +228,14 @@ class BookSetting(models.Model):
 
 
 
-
 class Setting(models.Model):
   user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
   #  warningn
   paying_warning = models.CharField(max_length=155, null=True, blank=True)
+  paying_time_limit = models.IntegerField(null=True, blank=True, default=0)
+
+  # cancel book condition
+  cancel_time_limit = models.IntegerField(null=True, blank=True, default=0)
 
   # total mony
   total_money = models.IntegerField(null=True, default=0)
@@ -273,4 +276,8 @@ class Setting(models.Model):
     self.get_waited_money()
     super(Setting, self).save(*args, **kwargs)
 
-    
+   
+class Number(models.Model):
+  setting = models.ForeignKey(Setting, on_delete=models.CASCADE, null=True, blank=True)
+  number = models.IntegerField(null=True, blank=True)
+ 

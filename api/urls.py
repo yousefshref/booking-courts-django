@@ -7,10 +7,6 @@ from django.conf import settings
 urlpatterns = [
 
 
-    path('test/', views.test),
-
-
-
     path('register/', views.signup),
     path('login/', views.login),
 
@@ -51,7 +47,12 @@ urlpatterns = [
     path('books/', views.get_user_books),
     path('books/<int:book_id>/', views.get_user_book),
     path('books/<int:book_id>/update/', views.book_update),
+    path('books/<int:book_id>/delete/', views.book_delete),
 
+
+    path('settings/<int:setting_id>/numbers/', views.get_numbers),
+    path('settings/<int:number_id>/numbers/delete/', views.delete_numbers),
+    path('settings/numbers/create/', views.create_number),
 
     path('settings/', views.get_settings),
     path('settings/update/', views.update_settings),
