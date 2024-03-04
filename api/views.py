@@ -232,23 +232,29 @@ def get_courts(request):
       
       courts = models.Court.objects.filter(Q(user=request.user.staff_for) | Q(user__id__in=ids))
 
-    search = request.GET.get('search')
-    state = request.GET.get('state')
-    type = request.GET.get('type')
-    type2 = request.GET.get('type2')
 
-    if search:
-        courts = courts.filter(title__icontains=search)
+    # price from
+    if request.GET.get('price_from'):
+       courts = courts.filter(Q(price_per_hour__gte=request.GET.get('price_from')))
+    # price to
+    if request.GET.get('price_to'):
+       courts = courts.filter(Q(price_per_hour__lte=request.GET.get('price_to')))
+    # state
+    if request.GET.get('state'):
+       courts = courts.filter(Q(state__id=request.GET.get('state')))
+    # type
+    if request.GET.get('type'):
+       courts = courts.filter(Q(type__id=request.GET.get('type')))
+    # type2
+    if request.GET.get('type2'):
+       courts = courts.filter(Q(type2__id=request.GET.get('type2')))
+    # offers
+    if request.GET.get('offer') == 'true':
+       courts = courts.filter(Q(offer_price_per_hour__gte=0))
+    # events
+    if request.GET.get('event') == 'true':
+       courts = courts.filter(Q(event=True))
 
-    if state:
-        courts = courts.filter(state__id=state)
-
-    if type:
-        courts = courts.filter(type__id=type)
-
-    if type2:
-        courts = courts.filter(type2__id=type2)
-    
 
     ser = serializers.CourtSerializer(courts.order_by('-id'), many=True)
     return Response(ser.data)
@@ -479,28 +485,38 @@ def create_book(request):
 @permission_classes([IsAuthenticated])
 def get_user_books(request):
 
-  books = models.Book.objects.all()
+  # books = models.Book.objects.all()
 
-  if request.user.is_superuser:
-    all_stafs = models.CustomUser.objects.filter(staff_for=request.user)
-    books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=all_stafs))
+  # if request.user.is_superuser:
+  #   all_stafs = models.CustomUser.objects.filter(staff_for=request.user)
+  #   books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=all_stafs))
 
-  if request.user.is_staff:
-    all_stafs = models.CustomUser.objects.filter(staff_for=request.user.staff_for)
-    books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=all_stafs))
+  # if request.user.is_staff:
+  #   all_stafs = models.CustomUser.objects.filter(staff_for=request.user.staff_for)
+  #   books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=all_stafs))
 
 
-  if not request.user.is_staff and not request.user.is_superuser:
-    books = books.filter(Q(user=request.user))
+  # if not request.user.is_staff and not request.user.is_superuser:
+  #   books = books.filter(Q(user=request.user))
      
+  # books = books.filter(Q(book_date__gte=datetime.today()))
+  # # date
+  # if request.GET.get('date_from') and request.GET.get('date_to'):
+  #    books = books.filter(Q(book_date__range=[request.GET.get('date_from'), request.GET.get('date_to')]))
 
-      
-  search = request.GET.get('search')
-  if search:
-      books = books.filter(Q(name__icontains=search) | Q(phone__icontains=search))
-      
-  ser = serializers.BookSerializer(books, many=True)
-  return Response(ser.data)
+
+  # ser = serializers.BookSerializer(books, many=True)
+
+  
+  times = models.BookTime.objects.filter(book__user=request.user)
+  times_ser = serializers.BookTimeSerializer(times, many=True)
+
+  data = {
+    # "books":ser.data,
+    "times":times_ser.data,
+  } 
+  
+  return Response(data)
 
 
 def convert_to_days_and_add_to_date(hours, input_date):
