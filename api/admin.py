@@ -25,3 +25,6 @@ admin.site.register(models.BookTime)
 
 admin.site.register(models.Number)
 admin.site.register(models.Setting)
+
+
+admin.site.register(models.Notification)

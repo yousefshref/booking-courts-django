@@ -49,16 +49,29 @@ class Court(models.Model):
 
   closed_now = models.BooleanField(default=False, null=True, blank=True)
 
-  offer_price_per_hour = models.IntegerField(null=True, blank=True)
+  offer_price_per_hour = models.IntegerField(default=0, null=True, blank=True)
   offer_from = models.TimeField(null=True, blank=True)
   offer_to = models.TimeField(null=True, blank=True)
   with_ball = models.BooleanField(default=False,null=True)
-  ball_price = models.IntegerField(null=True, blank=True)
+  ball_price = models.IntegerField(default=0, null=True, blank=True)
   event = models.BooleanField(default=False,null=True)
-  event_price = models.IntegerField(null=True, blank=True)
+  event_price = models.IntegerField(default=0, null=True, blank=True)
   event_from = models.TimeField(null=True, blank=True)
   event_to = models.TimeField(null=True, blank=True)
 
+
+  def save(self, *args, **kwargs):
+    if self.ball_price == 0 and self.with_ball:
+      self.with_ball = False
+
+    if self.event_price == 0 and self.event:
+      self.event = False
+
+    if self.offer_price_per_hour == 0 and self.offer_from:
+      self.offer_from = None
+      self.offer_to = None
+
+    super(Court, self).save(*args, **kwargs)
 
   def __str__(self):
       return str(self.title)
@@ -135,6 +148,8 @@ class Book(models.Model):
   paied = models.CharField(max_length=155, choices=paied_choices)
 
   is_paied = models.BooleanField(default=False, null=True)
+
+  is_cancelled = models.BooleanField(default=False, null=True)
   
 
   total_price = models.IntegerField(null=True, blank=True, default=0)
@@ -143,6 +158,8 @@ class Book(models.Model):
 
 
   def save(self, *args, **kwargs):
+    if self.is_cancelled:
+      self.is_paied = False
     try:
       court = Court.objects.get(pk=self.court.pk)
       selected_times = BookTime.objects.filter(book__pk=self.pk)
@@ -171,6 +188,14 @@ class Book(models.Model):
       self.total_price = price
     except:
        pass
+    # save settings
+    if self.court.user.is_staff:
+      setting = Setting.objects.get(user=self.court.user.staff_for)
+      setting.save()
+
+    elif self.court.user.is_superuser:
+      setting = Setting.objects.get(user=self.court.user)
+      setting.save()
     super(Book, self).save(*args, **kwargs)
     # save settings
     if self.court.user.is_staff:
@@ -240,6 +265,7 @@ class Setting(models.Model):
   # total mony
   total_money = models.IntegerField(null=True, default=0)
   waiting_money = models.IntegerField(null=True, default=0)
+  cancelled_money = models.IntegerField(null=True, default=0)
 
 
   def get_waited_money(self):
@@ -249,7 +275,7 @@ class Setting(models.Model):
     for i in all_staffs.all():
        ids.append(i.pk)
     if original_total_money_not_paied is not None:
-      not_paied_books = Book.objects.filter((Q(court__user=self.user) | Q(court__user__id__in=ids)) & Q(is_paied=False))
+      not_paied_books = Book.objects.filter((Q(court__user=self.user) | Q(court__user__id__in=ids)) & Q(is_paied=False) & Q(is_cancelled=False))
 
       current_total_money_not_paied = sum(book.total_price for book in not_paied_books)
 
@@ -264,16 +290,33 @@ class Setting(models.Model):
     for i in all_staffs.all():
        ids.append(i.pk)
     if original_total_money is not None:
-      paid_books = Book.objects.filter((Q(court__user=self.user) | Q(court__user__id__in=ids)) & Q(is_paied=True))
+      paid_books = Book.objects.filter((Q(court__user=self.user) | Q(court__user__id__in=ids)) & Q(is_paied=True) & Q(is_cancelled=False))
 
       current_total_money = sum(book.total_price for book in paid_books)
 
       if current_total_money != original_total_money:
         self.total_money = current_total_money
 
+  def get_cancelled_money(self):
+    # cancelled
+    original_total_money = Setting.objects.get(id=self.id).cancelled_money if self.id else 0
+    all_staffs = CustomUser.objects.filter(staff_for=self.user)
+    ids=[]
+    for i in all_staffs.all():
+       ids.append(i.pk)
+    if original_total_money is not None:
+      c_books = Book.objects.filter((Q(court__user=self.user) | Q(court__user__id__in=ids)) & Q(is_paied=False) & Q(is_cancelled=True))
+
+      current_total_money = sum(book.total_price for book in c_books)
+
+      if current_total_money != original_total_money:
+        self.cancelled_money = current_total_money
+
+
   def save(self, *args, **kwargs):
     self.get_total_money()
     self.get_waited_money()
+    self.get_cancelled_money()
     super(Setting, self).save(*args, **kwargs)
 
    
@@ -281,3 +324,16 @@ class Number(models.Model):
   setting = models.ForeignKey(Setting, on_delete=models.CASCADE, null=True, blank=True)
   number = models.IntegerField(null=True, blank=True)
  
+
+
+
+
+
+
+
+
+class Notification(models.Model):
+  user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+  slot = models.CharField(max_length=100)
+  book_time = models.ForeignKey(BookTime, on_delete=models.CASCADE, null=True)
+  is_sent = models.BooleanField(default=False, null=True)

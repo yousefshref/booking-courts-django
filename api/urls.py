@@ -48,6 +48,8 @@ urlpatterns = [
     path('books/<int:book_id>/', views.get_user_book),
     path('books/<int:book_id>/update/', views.book_update),
     path('books/<int:book_id>/delete/', views.book_delete),
+    path('books/time/<int:time_id>/update/', views.book_time_update),
+    path('books/time/<int:time_id>/delete/', views.book_time_delete),
 
 
     path('settings/<int:setting_id>/numbers/', views.get_numbers),
@@ -58,10 +60,11 @@ urlpatterns = [
     path('settings/update/', views.update_settings),
 
 
-
-
     path('staffs/', views.get_staffs),
     path('staffs/<int:staff_id>/', views.staff_details),
+
+    
+    path('notifications/create/', views.create_notification),
 
 
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -461,6 +461,8 @@ def create_book_times(book_id, times):
         instance.save()
 
 
+import requests
+
 @api_view(['POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -468,14 +470,17 @@ def create_book(request):
     data = request.data.copy()
     data['user'] = request.user.pk
 
-    # if data['paied'] == 'Cash' and (request.user.is_staff or request.user.is_superuser):
-    #   data['is_paied'] = True
-      
     ser = serializers.BookSerializer(data=data)
     if ser.is_valid():
         book = ser.save()
         create_book_setting(book.id)
         create_book_times(book.id, request.data['book_time'])
+        # send sms
+        court = models.Court.objects.get(id=book.court.pk)
+        message = f"تم حجز الملعب {court.title} بأسم {book.name}, يرجي قراءة الشروط واتباعها لتجنب المشاكل تاريخ العملية {str(datetime.today())[0:10]} وتاريخ الحجز {str(book.book_date)}"
+        url = f"https://smsmisr.com/api/SMS/?environment=1&username=BE0MFV77&password=c63a781dd862e4d1cb36fe031481a65bf9d1ef5f5df9368e63133e86f34ab175&language=2&sender=527fdd77da70f404ed394f76fd1d44d4ab067a319c2109a8d343ed94a4e099ee&mobile={book.phone}&message={message}"
+        headers = {"Content-Type": "application/json"}
+        requests.post(url, headers=headers)
         return Response(ser.data)
     return Response(ser.errors)
 
@@ -509,6 +514,13 @@ def get_user_books(request):
 
   
   times = models.BookTime.objects.filter(book__user=request.user)
+
+  if request.GET.get('date_from'):
+    times = times.filter(Q(book__book_date__gte=request.GET.get('date_from')) | Q(book_to_date__gte=request.GET.get('date_from')))
+
+  if request.GET.get('date_to'):
+    times = times.filter(Q(book__book_date__lte=request.GET.get('date_to')))
+
   times_ser = serializers.BookTimeSerializer(times, many=True)
 
   data = {
@@ -548,7 +560,9 @@ def get_user_book(request, book_id):
     limited_date_formated = datetime.strptime(str(limited_date), "%Y-%m-%d %H:%M:%S.%f%z").strftime("%Y-%m-%d")
     todays_date = datetime.strptime(str(datetime.today()), "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d")
 
-    can_delete = todays_date < limited_date_formated
+    can_delete = todays_date <= limited_date_formated
+    if request.user.is_superuser or request.user.is_staff:
+      can_delete = True
 
     data = {
        "book":book_ser.data,
@@ -596,7 +610,7 @@ def check_while_booking(request, court_id):
         fourth_condition = time.book_to_date == None and str(time.book.book_date) == court_date and slot1 == str(time1) and slot2 == str(time2) and str(time.book_to) > str(datetime.now().time())[:5]
         
 
-        if f_condition or s_condition or t_condition or fourth_condition:
+        if (f_condition or s_condition or t_condition or fourth_condition) and time.book.is_cancelled == False:
           book_times.append(f"{slot1}-{slot2}")
 
 
@@ -775,9 +789,50 @@ def book_update(request, book_id):
 @permission_classes([IsAuthenticated])
 def book_delete(request, book_id):
   book = models.Book.objects.get(id=book_id)
-  setting = models.Setting.objects.get(Q(user=book.court.user) | Q(user=book.court.user.staff_for))
-  book.delete()
-  setting.save()
+
+  # check if notified
+  times = models.BookTime.objects.filter(book__pk=book.pk)
+
+  notifications = models.Notification.objects.filter(Q(book_time__id__in=times) and Q(is_sent=False))
+
+  for notification in notifications:
+    # send message
+    # court_url = f"http://localhost:3000/courts/{notification.book_time.book.court.pk}"
+    court_url = f"https://booking-courts-nextjs-5sei.vercel.app/courts/{notification.book_time.book.court.pk}"
+    message = f"الملعب {notification.book_time.book.court.title} فارغ من هذا الوقت {str(notification.slot)} يمكنك حجزة الأن {court_url}"
+    url = f"https://smsmisr.com/api/SMS/?environment=1&username=BE0MFV77&password=c63a781dd862e4d1cb36fe031481a65bf9d1ef5f5df9368e63133e86f34ab175&language=2&sender=527fdd77da70f404ed394f76fd1d44d4ab067a319c2109a8d343ed94a4e099ee&mobile={notification.user.phone}&message={message}"
+    headers = {"Content-Type": "application/json"}
+    requests.post(url, headers=headers)
+    notification.is_sent = True
+    notification.save()
+    
+
+  book.is_cancelled = True
+  book.save()
+  return Response({"success":True})
+
+
+
+
+@api_view(['PUT'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def book_time_update(request, time_id):
+  instance = models.BookTime.objects.get(id=time_id)
+  ser = serializers.BookTimeSerializer(instance, data=request.data, partial=True)
+  if ser.is_valid():
+    ser.save()
+    instance.book.save()
+    return Response(ser.data)
+  return Response(ser.errors)
+
+@api_view(['DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def book_time_delete(request, time_id):
+  instance = models.BookTime.objects.get(id=time_id)
+  instance.delete()
+  instance.book.save()
   return Response({"success":True})
 
 
@@ -837,8 +892,7 @@ def get_settings(request):
   ser = serializers.SettingSerializer(settings)
 
 
-  # CHECK BOOKS TIME LIMITED TO PAY
-  # books created date
+
   books = models.Book.objects.all()
   if request.user.is_superuser:
     staffs = models.CustomUser.objects.filter(staff_for=request.user)
@@ -854,6 +908,7 @@ def get_settings(request):
        ids.append(i.pk)
     books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=ids))
 
+  # display deleted books
   deleted_books = []
   try:
     if settings.paying_time_limit != None and int(settings.paying_time_limit) > 0:
@@ -868,9 +923,11 @@ def get_settings(request):
         limited_date_formated = datetime.strptime(str(limited_date_to_pay), "%Y-%m-%d %H:%M:%S.%f%z").strftime("%Y-%m-%d")
         todays_date = datetime.strptime(str(datetime.today()), "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d")
 
+        print(limited_date_formated < todays_date and not book.is_paied)
+
         if limited_date_formated < todays_date and not book.is_paied:
           #  delete book
-          if path == '/profile' and (request.user.is_superuser or request.user.is_staff):
+          if path == '/profile' and (request.user.is_superuser or request.user.is_staff) and book.is_cancelled == False:
             deleted_books.append({
               "user": book.user.username,
               "name": book.name,
@@ -879,13 +936,36 @@ def get_settings(request):
               "created_at": str(book.created_at),
               "book_date": str(book.book_date),
             })
-            book.delete()
+            book.is_cancelled = True
+            book.save()
             settings.save()
+          settings.save()
+        settings.save()
+      settings.save()
+    settings.save()
   except:
      pass
+
+
+  # get cancelled books
+  cancelled_books = books.filter(Q(is_cancelled=True))
+
+  if request.GET.get('cancel_from'):
+    cancelled_books = cancelled_books.filter(Q(book_date__gte=request.GET.get('cancel_from')))
+
+  if request.GET.get('cancel_to'):
+    cancelled_books = cancelled_books.filter(Q(book_date__lte=request.GET.get('cancel_to')))
+
+  if request.GET.get('cancel_search'):
+    cancelled_books = cancelled_books.filter(Q(name__icontains=request.GET.get('cancel_search')) | Q(phone__icontains=request.GET.get('cancel_search')))
+     
+  cancelled_ser = serializers.BookSerializer(cancelled_books, many=True)
+
+  
   data = {
      "settings":ser.data,
-     "deleted_books":deleted_books
+     "deleted_books":deleted_books,
+     "cancelled_books":cancelled_ser.data,
   }
   return Response(data)
 
@@ -996,8 +1076,30 @@ def staff_details(request, staff_id):
 
 
 
+# {'user': 12, 'court': '86', 'slot': '9:00PM-10:00PM'}
+# create notifiation
+@api_view(['POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def create_notification(request):
+  data = request.data.copy()
+  data['user'] = request.user.pk
 
+  times = models.BookTime.objects.filter(Q(book__court__pk=data['court']))
+  slot1 = convert_to_24_hour_format(data['slot'][0:6])
+  slot2 = convert_to_24_hour_format(data['slot'][7:15])
+  book_time = None
+  for time in times.all():
+    if str(time.book_from) == str(slot1) and str(time.book_to) == str(slot2):
+      book_time = time.pk
+  
+  data['book_time'] = book_time
 
+  ser = serializers.NotificationSerializer(data=data)
+  if ser.is_valid():
+    ser.save()
+    return Response(ser.data)
+  return Response(ser.errors)
 
 
 
