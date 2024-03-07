@@ -48,6 +48,8 @@ urlpatterns = [
     path('books/<int:book_id>/', views.get_user_book),
     path('books/<int:book_id>/update/', views.book_update),
     path('books/<int:book_id>/delete/', views.book_delete),
+
+    path('books/time/<int:time_id>/', views.book_time),
     path('books/time/<int:time_id>/update/', views.book_time_update),
     path('books/time/<int:time_id>/delete/', views.book_time_delete),
 

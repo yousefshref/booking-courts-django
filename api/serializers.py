@@ -77,11 +77,11 @@ class BookTimeSerializer(serializers.ModelSerializer):
         model = models.BookTime
         fields = '__all__'
         
-class BookSettingsSerializer(serializers.ModelSerializer):
-    tools_details = CourtAdditionalToolSerializer(many=True, read_only=True, source='tools')
-    class Meta():
-        model = models.BookSetting
-        fields = '__all__'
+# class BookSettingsSerializer(serializers.ModelSerializer):
+#     tools_details = CourtAdditionalToolSerializer(many=True, read_only=True, source='tools')
+#     class Meta():
+#         model = models.BookSetting
+#         fields = '__all__'
 
 
 class OverTimeSerializer(serializers.ModelSerializer):
@@ -91,7 +91,7 @@ class OverTimeSerializer(serializers.ModelSerializer):
 
 class BookSerializer(serializers.ModelSerializer):
     book_time = BookTimeSerializer(many=True, read_only=True)
-    book_setting = BookSettingsSerializer(many=True, read_only=True)
+    # book_setting = BookSettingsSerializer(many=True, read_only=True)
     court_details = CourtSerializer(read_only=True, source='court')
     book_over_time = OverTimeSerializer(read_only=True, many=True)
     class Meta():

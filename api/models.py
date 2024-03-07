@@ -141,70 +141,66 @@ class Book(models.Model):
   name = models.CharField(max_length=255)
   phone = models.CharField(max_length=255)
   book_date = models.DateField()
-  with_ball = models.BooleanField()
-  event = models.BooleanField()
 
-  
-  paied = models.CharField(max_length=155, choices=paied_choices)
-
-  is_paied = models.BooleanField(default=False, null=True)
-
-  is_cancelled = models.BooleanField(default=False, null=True)
-  
+  # with_ball = models.BooleanField()
+  # event = models.BooleanField()
+  # paied = models.CharField(max_length=155, choices=paied_choices)
+  # is_paied = models.BooleanField(default=False, null=True)
+  # is_cancelled = models.BooleanField(default=False, null=True)
 
   total_price = models.IntegerField(null=True, blank=True, default=0)
   created_at = models.DateTimeField(auto_now_add=True)
   updated_at = models.DateTimeField(auto_now=True)
 
 
-  def save(self, *args, **kwargs):
-    if self.is_cancelled:
-      self.is_paied = False
-    try:
-      court = Court.objects.get(pk=self.court.pk)
-      selected_times = BookTime.objects.filter(book__pk=self.pk)
-      settings = BookSetting.objects.get(book__pk=self.pk)
+  # def save(self, *args, **kwargs):
+  #   if self.is_cancelled:
+  #     self.is_paied = False
+  #   try:
+  #     court = Court.objects.get(pk=self.court.pk)
+  #     selected_times = BookTime.objects.filter(book__pk=self.pk)
+  #     settings = BookSetting.objects.get(book__pk=self.pk)
 
-      price = 0
+  #     price = 0
 
-      if self.with_ball:
-          price += court.ball_price * len(selected_times)
+  #     if self.with_ball:
+  #         price += court.ball_price * len(selected_times)
 
-      if settings.tools:
-        print(settings.tools)
-        for i in settings.tools.all():
-            price += i.price * len(selected_times)
+  #     if settings.tools:
+  #       print(settings.tools)
+  #       for i in settings.tools.all():
+  #           price += i.price * len(selected_times)
 
-      for time in selected_times:
-          # offer
-          if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time.book_from) < str(court.offer_to)[:5]:
-            price += court.offer_price_per_hour
+  #     for time in selected_times:
+  #         # offer
+  #         if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time.book_from) < str(court.offer_to)[:5]:
+  #           price += court.offer_price_per_hour
 
-          if court.event is not None and self.event and court.event_price != 0 and str(court.event_from)[:5] <= str(time.book_from) < str(court.event_to)[:5]:
-            price += court.event_price
+  #         if court.event is not None and self.event and court.event_price != 0 and str(court.event_from)[:5] <= str(time.book_from) < str(court.event_to)[:5]:
+  #           price += court.event_price
 
-          price += court.price_per_hour
+  #         price += court.price_per_hour
 
-      self.total_price = price
-    except:
-       pass
-    # save settings
-    if self.court.user.is_staff:
-      setting = Setting.objects.get(user=self.court.user.staff_for)
-      setting.save()
+  #     self.total_price = price
+  #   except:
+  #      pass
+  #   # save settings
+  #   if self.court.user.is_staff:
+  #     setting = Setting.objects.get(user=self.court.user.staff_for)
+  #     setting.save()
 
-    elif self.court.user.is_superuser:
-      setting = Setting.objects.get(user=self.court.user)
-      setting.save()
-    super(Book, self).save(*args, **kwargs)
-    # save settings
-    if self.court.user.is_staff:
-      setting = Setting.objects.get(user=self.court.user.staff_for)
-      setting.save()
+  #   elif self.court.user.is_superuser:
+  #     setting = Setting.objects.get(user=self.court.user)
+  #     setting.save()
+  #   super(Book, self).save(*args, **kwargs)
+  #   # save settings
+  #   if self.court.user.is_staff:
+  #     setting = Setting.objects.get(user=self.court.user.staff_for)
+  #     setting.save()
 
-    elif self.court.user.is_superuser:
-      setting = Setting.objects.get(user=self.court.user)
-      setting.save()
+  #   elif self.court.user.is_superuser:
+  #     setting = Setting.objects.get(user=self.court.user)
+  #     setting.save()
 
 
   def __str__(self):
@@ -228,25 +224,34 @@ class OverTime(models.Model):
 
 class BookTime(models.Model):
   book = models.ForeignKey(Book, on_delete=models.CASCADE, null=True, related_name='book_time')
-  book_from = models.TimeField(null=True)
-  book_to = models.TimeField(null=True)
+  book_from = models.TimeField(null=True, blank=True)
+  book_to = models.TimeField(null=True, blank=True)
   book_to_date = models.DateField(null=True, blank=True)
-  book_to_date_cancel = models.DateField(null=True, blank=True) #cancel spesific day
+
+  with_ball = models.BooleanField(default=False, null=True, blank=True)
+  event = models.BooleanField(default=False, null=True, blank=True)
+  paied = models.CharField(max_length=155, choices=paied_choices, null=True, blank=True)
+  is_paied = models.BooleanField(default=False, null=True, blank=True)
+  is_cancelled = models.BooleanField(default=False, null=True, blank=True)
+  is_cancelled_day = models.DateField(null=True, blank=True)
+  tools = models.ManyToManyField(CourtAdditionalTool, null=True, blank=True)
+  total_price = models.IntegerField(null=True, blank=True, default=0)
+
 
   def save(self, *args, **kwargs):
     self.book.save()
     super(BookTime, self).save(*args, **kwargs)
 
 
-class BookSetting(models.Model):
-  book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='book_setting')
+# class BookSetting(models.Model):
+#   book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='book_setting')
 
-  # addiotionals
-  tools = models.ManyToManyField(CourtAdditionalTool, null=True, blank=True)
+#   # addiotionals
+#   tools = models.ManyToManyField(CourtAdditionalTool, null=True, blank=True)
 
-  def save(self, *args, **kwargs):
-      self.book.save()
-      super(BookSetting, self).save(*args, **kwargs)
+#   def save(self, *args, **kwargs):
+#       self.book.save()
+#       super(BookSetting, self).save(*args, **kwargs)
 
 
 

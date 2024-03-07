@@ -19,7 +19,7 @@ admin.site.register(models.CourtAdditionalTool)
 
 admin.site.register(models.Book)
 admin.site.register(models.OverTime)
-admin.site.register(models.BookSetting)
+# admin.site.register(models.BookSetting)
 admin.site.register(models.BookTime)
 
 
