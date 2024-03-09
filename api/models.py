@@ -3,6 +3,39 @@ from django.contrib.auth.models import AbstractUser
 
 import subprocess
 from django.db.models import Q
+from datetime import time, timedelta, datetime
+from django.db.models import Sum
+
+
+# functions
+def get_hours_between(start_time, end_time):
+  """
+  This function takes two times in the format "HH:MM:SS" and returns a list of hours between them.
+
+  Args:
+      start_time: The start time in the format "HH:MM:SS".
+      end_time: The end time in the format "HH:MM:SS".
+
+  Returns:
+      A list of hours between the start and end time, inclusive.
+  """
+  start_datetime = datetime.strptime(start_time, "%H:%M:%S")
+  end_datetime = datetime.strptime(end_time, "%H:%M:%S")
+
+  # Handle the case where the start time is after the end time
+  if start_datetime > end_datetime:
+    end_datetime = end_datetime + timedelta(days=1)
+
+  hours = []
+  current_time = start_datetime
+  while current_time <= end_datetime:
+    hours.append(current_time.strftime("%H"))
+    current_time += timedelta(hours=1)
+
+  return hours
+
+
+
 
 class State(models.Model):
     name = models.CharField(max_length=155,null=True)
@@ -129,7 +162,6 @@ class CourtAdditionalTool(models.Model):
 
 
 
-
 paied_choices = (
    ('E_Wallet', 'E_Wallet'),
    ('Cash', 'Cash'),
@@ -142,84 +174,15 @@ class Book(models.Model):
   phone = models.CharField(max_length=255)
   book_date = models.DateField()
 
-  # with_ball = models.BooleanField()
-  # event = models.BooleanField()
-  # paied = models.CharField(max_length=155, choices=paied_choices)
-  # is_paied = models.BooleanField(default=False, null=True)
-  # is_cancelled = models.BooleanField(default=False, null=True)
-
   total_price = models.IntegerField(null=True, blank=True, default=0)
   created_at = models.DateTimeField(auto_now_add=True)
   updated_at = models.DateTimeField(auto_now=True)
 
 
-  # def save(self, *args, **kwargs):
-  #   if self.is_cancelled:
-  #     self.is_paied = False
-  #   try:
-  #     court = Court.objects.get(pk=self.court.pk)
-  #     selected_times = BookTime.objects.filter(book__pk=self.pk)
-  #     settings = BookSetting.objects.get(book__pk=self.pk)
-
-  #     price = 0
-
-  #     if self.with_ball:
-  #         price += court.ball_price * len(selected_times)
-
-  #     if settings.tools:
-  #       print(settings.tools)
-  #       for i in settings.tools.all():
-  #           price += i.price * len(selected_times)
-
-  #     for time in selected_times:
-  #         # offer
-  #         if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time.book_from) < str(court.offer_to)[:5]:
-  #           price += court.offer_price_per_hour
-
-  #         if court.event is not None and self.event and court.event_price != 0 and str(court.event_from)[:5] <= str(time.book_from) < str(court.event_to)[:5]:
-  #           price += court.event_price
-
-  #         price += court.price_per_hour
-
-  #     self.total_price = price
-  #   except:
-  #      pass
-  #   # save settings
-  #   if self.court.user.is_staff:
-  #     setting = Setting.objects.get(user=self.court.user.staff_for)
-  #     setting.save()
-
-  #   elif self.court.user.is_superuser:
-  #     setting = Setting.objects.get(user=self.court.user)
-  #     setting.save()
-  #   super(Book, self).save(*args, **kwargs)
-  #   # save settings
-  #   if self.court.user.is_staff:
-  #     setting = Setting.objects.get(user=self.court.user.staff_for)
-  #     setting.save()
-
-  #   elif self.court.user.is_superuser:
-  #     setting = Setting.objects.get(user=self.court.user)
-  #     setting.save()
-
 
   def __str__(self):
       return self.name
 
-
-
-class OverTime(models.Model):
-  book = models.ForeignKey(Book, on_delete=models.CASCADE, null=True, related_name='book_over_time')
-  book_from = models.TimeField(null=True, blank=True)
-  book_to = models.TimeField(null=True, blank=True)
-  note = models.TextField(null=True, blank=True)
-  price = models.IntegerField(null=True, blank=True)
-  created_at = models.DateTimeField(auto_now_add=True)
-  updated_at = models.DateTimeField(auto_now=True)
-
-  def save(self, *args, **kwargs):
-    self.book.save()
-    super(OverTime, self).save(*args, **kwargs)
 
 
 class BookTime(models.Model):
@@ -237,21 +200,62 @@ class BookTime(models.Model):
   tools = models.ManyToManyField(CourtAdditionalTool, null=True, blank=True)
   total_price = models.IntegerField(null=True, blank=True, default=0)
 
+  def get_total_price(self):
+    total = 0
+    # ball
+    if self.book.court.ball_price and self.with_ball:
+      total += self.book.court.ball_price
+
+    # tools
+    for i in self.tools.all():
+      total += i.price
+
+    try:
+      event_range = get_hours_between(str(self.book.court.event_from), str(self.book.court.event_to))
+      # event
+      if self.book.court.event_price and self.event and str(self.book_from)[0:2] in event_range and str(self.book_to)[0:2] in event_range:
+        total += self.book.court.event_price
+    except:
+      pass
+    try:
+      offer_range = get_hours_between(str(self.book.court.offer_from), str(self.book.court.offer_to))
+      # offer
+      if self.book.court.offer_price_per_hour and str(self.book_from)[0:2] in offer_range and str(self.book_to)[0:2] in offer_range:
+        total += self.book.court.offer_price_per_hour
+    except:
+      pass
+
+    # normal
+    total += self.book.court.price_per_hour
+
+    self.total_price = total
+
+
+  def save(self, *args, **kwargs):
+    super(BookTime, self).save(*args, **kwargs)  # Save the instance
+    self.get_total_price()
+    super(BookTime, self).save(*args, **kwargs)  # Save the instance
+
+
+from django.db.models.signals import m2m_changed
+from django.dispatch import receiver
+@receiver(m2m_changed, sender=BookTime.tools.through)
+def update_total_sum(sender, instance, action, **kwargs):
+    if action in ['post_add', 'post_remove', 'post_clear']:
+        instance.save()
+
+class OverTime(models.Model):
+  book = models.ForeignKey(Book, on_delete=models.CASCADE, null=True, related_name='book_over_time')
+  book_from = models.TimeField(null=True, blank=True)
+  book_to = models.TimeField(null=True, blank=True)
+  note = models.TextField(null=True, blank=True)
+  price = models.IntegerField(null=True, blank=True)
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
 
   def save(self, *args, **kwargs):
     self.book.save()
-    super(BookTime, self).save(*args, **kwargs)
-
-
-# class BookSetting(models.Model):
-#   book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='book_setting')
-
-#   # addiotionals
-#   tools = models.ManyToManyField(CourtAdditionalTool, null=True, blank=True)
-
-#   def save(self, *args, **kwargs):
-#       self.book.save()
-#       super(BookSetting, self).save(*args, **kwargs)
+    super(OverTime, self).save(*args, **kwargs)
 
 
 
@@ -280,7 +284,8 @@ class Setting(models.Model):
     for i in all_staffs.all():
        ids.append(i.pk)
     if original_total_money_not_paied is not None:
-      not_paied_books = Book.objects.filter((Q(court__user=self.user) | Q(court__user__id__in=ids)) & Q(is_paied=False) & Q(is_cancelled=False))
+      # not_paied_books = Book.objects.filter((Q(court__user=self.user) | Q(court__user__id__in=ids)) & Q(is_paied=False) & Q(is_cancelled=False))
+      not_paied_books = BookTime.objects.filter((Q(book__court__user=self.user) | Q(book__court__user__id__in=ids)) & Q(is_paied=False) & Q(is_cancelled=False))
 
       current_total_money_not_paied = sum(book.total_price for book in not_paied_books)
 
@@ -295,7 +300,7 @@ class Setting(models.Model):
     for i in all_staffs.all():
        ids.append(i.pk)
     if original_total_money is not None:
-      paid_books = Book.objects.filter((Q(court__user=self.user) | Q(court__user__id__in=ids)) & Q(is_paied=True) & Q(is_cancelled=False))
+      paid_books = BookTime.objects.filter((Q(book__court__user=self.user) | Q(book__court__user__id__in=ids)) & Q(is_paied=True) & Q(is_cancelled=False))
 
       current_total_money = sum(book.total_price for book in paid_books)
 
@@ -310,7 +315,7 @@ class Setting(models.Model):
     for i in all_staffs.all():
        ids.append(i.pk)
     if original_total_money is not None:
-      c_books = Book.objects.filter((Q(court__user=self.user) | Q(court__user__id__in=ids)) & Q(is_paied=False) & Q(is_cancelled=True))
+      c_books = BookTime.objects.filter((Q(book__court__user=self.user) | Q(book__court__user__id__in=ids)) & Q(is_paied=False) & Q(is_cancelled=True))
 
       current_total_money = sum(book.total_price for book in c_books)
 
@@ -319,6 +324,7 @@ class Setting(models.Model):
 
 
   def save(self, *args, **kwargs):
+    super(Setting, self).save(*args, **kwargs)
     self.get_total_money()
     self.get_waited_money()
     self.get_cancelled_money()

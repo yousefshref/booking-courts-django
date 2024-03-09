@@ -51,7 +51,6 @@ urlpatterns = [
 
     path('books/time/<int:time_id>/', views.book_time),
     path('books/time/<int:time_id>/update/', views.book_time_update),
-    path('books/time/<int:time_id>/delete/', views.book_time_delete),
 
 
     path('settings/<int:setting_id>/numbers/', views.get_numbers),

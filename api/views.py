@@ -15,6 +15,32 @@ from . import models
 
 todays_date = str(datetime.today())[0:10]
 
+# functions
+def get_hours_between(start_time, end_time):
+  """
+  This function takes two times in the format "HH:MM:SS" and returns a list of hours between them.
+
+  Args:
+      start_time: The start time in the format "HH:MM:SS".
+      end_time: The end time in the format "HH:MM:SS".
+
+  Returns:
+      A list of hours between the start and end time, inclusive.
+  """
+  start_datetime = datetime.strptime(start_time, "%H:%M:%S")
+  end_datetime = datetime.strptime(end_time, "%H:%M:%S")
+
+  # Handle the case where the start time is after the end time
+  if start_datetime > end_datetime:
+    end_datetime = end_datetime + timedelta(days=1)
+
+  hours = []
+  current_time = start_datetime
+  while current_time <= end_datetime:
+    hours.append(current_time.strftime("%H"))
+    current_time += timedelta(hours=1)
+
+  return hours
 
 # -------------------------------------------------AUTH-------------------------------------------------------
 
@@ -358,24 +384,24 @@ def get_court(request, court_id):
     all_pinned_times_for_this_court = []
     for i in book_times:
       if i.book_to_date is not None:
-        pinned_times = generate_dates(datetime.strptime(str(todays_date), '%Y-%m-%d'), datetime.strptime(str(i.book_to_date)[0:10], '%Y-%m-%d'))
+        pinned_times = generate_dates(datetime.strptime(str(i.book.book_date), '%Y-%m-%d'), datetime.strptime(str(i.book_to_date)[0:10], '%Y-%m-%d'))
         for p in pinned_times:
           all_pinned_times_for_this_court.append(p)
 
 
 
     # filter and search
-
     book_date = request.GET.get('book_date')
+    print(book_date)
     if book_date:
       try:
-        book_times = book_times.filter(
-          Q(book__book_date=book_date) | (len(all_pinned_times_for_this_court) > 0 and book_date in all_pinned_times_for_this_court and Q(book_to_date__gte=current_date))
-        )
-        print(book_times)
+        if len(all_pinned_times_for_this_court) > 0 and book_date in all_pinned_times_for_this_court:
+           book_times = book_times.filter(Q(book_to_date__gte=current_date))
+        else:
+          book_times = book_times.filter(
+        Q(book__book_date=book_date)) 
       except:
         book_times = []
-
 
     event = request.GET.get('event')
     if event:
@@ -423,12 +449,10 @@ def get_court(request, court_id):
     numbers = models.Number.objects.filter(setting=court_settings)
     numbers_ser = serializers.NumbergSerializer(numbers, many=True)
 
-    # print(generate_intervals(str(court.open), str(court.close)))
 
     data = {
         "court":court_ser.data,
         "booked_times":book_times_ser.data,
-        # "slots":generate_hourly_intervals(datetime.strptime(str(court.open), "%H:%M:%S"), datetime.strptime(str(court.close), "%H:%M:%S")),
         "slots":generate_intervals(str(court.open), str(court.close)),
         "paying_warning":court_settings.paying_warning,
         "numbers":numbers_ser.data,
@@ -527,22 +551,11 @@ def create_book(request):
     ser = serializers.BookSerializer(data=data)
     if ser.is_valid():
         book = ser.save()
-        # create_book_setting(book.id)
         create_book_times(book.id, request.data['book_time'])
-        # book
-        # book_from
-        # book_to
-        # book_to_date
-        # book_to_date_cancel
-        # with_ball
-        # event
-        # paied
-        # is_cancel
-        
         # send sms
         court = models.Court.objects.get(id=book.court.pk)
         message = f"تم حجز الملعب {court.title} بأسم {book.name}, يرجي قراءة الشروط واتباعها لتجنب المشاكل تاريخ العملية {str(datetime.today())[0:10]} وتاريخ الحجز {str(book.book_date)}"
-        url = f"https://smsmisr.com/api/SMS/?environment=2&username=BE0MFV77&password=c63a781dd862e4d1cb36fe031481a65bf9d1ef5f5df9368e63133e86f34ab175&language=2&sender=527fdd77da70f404ed394f76fd1d44d4ab067a319c2109a8d343ed94a4e099ee&mobile={book.phone}&message={message}"
+        url = f"https://smsmisr.com/api/SMS/?environment=1&username=BE0MFV77&password=c63a781dd862e4d1cb36fe031481a65bf9d1ef5f5df9368e63133e86f34ab175&language=2&sender=527fdd77da70f404ed394f76fd1d44d4ab067a319c2109a8d343ed94a4e099ee&mobile={book.phone}&message={message}"
         headers = {"Content-Type": "application/json"}
         requests.post(url, headers=headers)
 
@@ -566,7 +579,7 @@ def get_user_books(request):
   #   books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=all_stafs))
 
 
-  # if not request.user.is_staff and not request.user.is_superuser:
+  # if not request.user.is_staff & not request.user.is_superuser:
   #   books = books.filter(Q(user=request.user))
      
   # books = books.filter(Q(book_date__gte=datetime.today()))
@@ -606,7 +619,7 @@ def convert_to_days_and_add_to_date(hours, input_date):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_user_book(request, book_id):
-
+    
     if request.user.is_superuser or request.user.is_staff:
       book = models.Book.objects.get(pk=book_id)
     else:
@@ -614,24 +627,8 @@ def get_user_book(request, book_id):
 
     book_ser = serializers.BookSerializer(book)
 
-    # get if can be deleted
-    settings = models.Setting.objects.get(Q(user=book.court.user) | Q(user=book.court.user.staff_for))
-    book_created_at = book.created_at
-    # days_time
-    time_to_cancel = settings.cancel_time_limit
-    # limited day
-    limited_date = convert_to_days_and_add_to_date(time_to_cancel, book_created_at)
-    # compare
-    limited_date_formated = datetime.strptime(str(limited_date), "%Y-%m-%d %H:%M:%S.%f%z").strftime("%Y-%m-%d")
-    todays_date = datetime.strptime(str(datetime.today()), "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d")
-
-    can_delete = todays_date <= limited_date_formated
-    if request.user.is_superuser or request.user.is_staff:
-      can_delete = True
-
     data = {
        "book":book_ser.data,
-       "can_delete":can_delete
     }
     return Response(data)
 
@@ -679,7 +676,7 @@ def check_while_booking(request, court_id):
 
       pinned_time = None
       if exist.book_to_date != None:
-        pinned_time = generate_dates(datetime.strptime(str(todays_date), '%Y-%m-%d'), datetime.strptime(str(exist.book_to_date), '%Y-%m-%d'))
+        pinned_time = generate_dates(datetime.strptime(str(exist.book.book_date), '%Y-%m-%d'), datetime.strptime(str(exist.book_to_date), '%Y-%m-%d'))
 
 
       if pinned_time is not None:
@@ -710,50 +707,30 @@ def check_while_booking(request, court_id):
 
 
 
-    # get book summerize
+    # # get book summerize
     with_ball = request.GET.get('with_ball')
     event = request.GET.get('event')
     selected_times = json.loads(request.GET.get('selected_times'))
     
-    ball = 0
-    event_price = 0
-    offers_prices = 0
+    print(with_ball)
+
     price = 0
 
-    if with_ball == 'true' and court.with_ball:
-        ball += court.ball_price * len(selected_times)
-        price += court.ball_price * len(selected_times)
-
+    total = 0
 
     for time in selected_times:
-      # event
-      if court.event == True and event == 'true' and court.event_price != 0 and str(court.event_from)[:5] <= str(time['book_from']) < str(court.event_to)[:5]:
-        event_price += court.event_price
-        price += court.event_price
 
-      # offer
-      if court.offer_price_per_hour is not None and court.offer_price_per_hour != 0 and str(court.offer_from)[:5] <= str(time['book_from']) < str(court.offer_to)[:5]:
-        offers_prices += court.offer_price_per_hour
-        price += court.offer_price_per_hour
-      
-      price += court.price_per_hour
-        
+      total += court.price_per_hour
+
+      price = total
 
 
     checkourt_date = {
         "total_price":price,
-        "ball":ball,
-        "event_price":event_price,
-        "offers_prices":offers_prices,
     }
 
 
-
-    # book = models.BookSetting.objects.filter(book__court__id=court_id)
-    # ser = serializers.BookSettingsSerializer(book, many=True)
-
     data = {
-        # 'settings':ser.data,
         'booked':book_times,
         'price_date':checkourt_date,
         'closed_times':closed_times,
@@ -874,21 +851,6 @@ def book_delete(request, book_id):
 
   # check if notified
   times = models.BookTime.objects.filter(book__pk=book.pk)
-
-  notifications = models.Notification.objects.filter(Q(book_time__id__in=times) and Q(is_sent=False))
-
-  for notification in notifications:
-    # send message
-    # court_url = f"http://localhost:3000/courts/{notification.book_time.book.court.pk}"
-    court_url = f"https://booking-courts-nextjs-5sei.vercel.app/courts/{notification.book_time.book.court.pk}"
-    message = f"الملعب {notification.book_time.book.court.title} فارغ من هذا الوقت {str(notification.slot)} يمكنك حجزة الأن {court_url}"
-    url = f"https://smsmisr.com/api/SMS/?environment=2&username=BE0MFV77&password=c63a781dd862e4d1cb36fe031481a65bf9d1ef5f5df9368e63133e86f34ab175&language=2&sender=527fdd77da70f404ed394f76fd1d44d4ab067a319c2109a8d343ed94a4e099ee&mobile={notification.user.phone}&message={message}"
-    headers = {"Content-Type": "application/json"}
-    requests.post(url, headers=headers)
-    notification.is_sent = True
-    notification.save()
-    
-
   # book.is_cancelled = True
   # book.save()
   return Response({"success":True})
@@ -902,12 +864,35 @@ def book_delete(request, book_id):
 def book_time(request, time_id):
   instance = models.BookTime.objects.get(id=time_id)
   try: 
-    pinned_times = generate_dates(datetime.strptime(str(todays_date), '%Y-%m-%d'), datetime.strptime(str(instance.book_to_date), '%Y-%m-%d'))
+    pinned_times = generate_dates(datetime.strptime(str(instance.book.book_date), '%Y-%m-%d'), datetime.strptime(str(instance.book_to_date), '%Y-%m-%d'))
   except:
     pinned_times = []
-     
+  
+  # can deleted
+  # settings
+  if instance.book.court.user.is_staff:
+    settings = models.Setting.objects.get(user=instance.book.court.user.staff_for)
+  else:
+    settings = models.Setting.objects.get(user=instance.book.court.user)
+
+  book_created_at = instance.book.created_at
+  # days_time
+  time_to_cancel = settings.cancel_time_limit
+  # limited day
+  limited_date = convert_to_days_and_add_to_date(time_to_cancel, book_created_at)
+  # compare
+  limited_date_formated = datetime.strptime(str(limited_date), "%Y-%m-%d %H:%M:%S.%f%z").strftime("%Y-%m-%d")
+  todays_date = datetime.strptime(str(datetime.today()), "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d")
+
+  can_delete = todays_date <= limited_date_formated
+  if request.user.is_superuser or request.user.is_staff:
+    can_delete = True
+
+  print(can_delete)
+  
   data = {
-    'pinned_times': pinned_times
+    'pinned_times': pinned_times,
+    'can_delete': can_delete,
   }
   return Response(data)
 
@@ -917,8 +902,6 @@ def book_time(request, time_id):
 def book_time_update(request, time_id):
   instance = models.BookTime.objects.get(id=time_id)
   data = request.data.copy()
-
-  print(request.GET.get('tools'))
   try:
     arr = []
     for i in request.GET.get('tools').split(','):
@@ -931,6 +914,29 @@ def book_time_update(request, time_id):
   if ser.is_valid():
     ser.save()
     instance.book.save()
+
+    # send sms
+    if instance.is_cancelled:
+      notifications = models.Notification.objects.filter(Q(book_time__id=instance.pk) and Q(is_sent=False))
+
+      for notification in notifications:
+        court_url = f"http://localhost:3000/courts/{notification.book_time.book.court.pk}"
+        # court_url = f"https://booking-courts-nextjs-5sei.vercel.app/courts/{notification.book_time.book.court.pk}"
+        message = f"الملعب {notification.book_time.book.court.title} فارغ من هذا الوقت {str(notification.slot)} يمكنك حجزة الأن {court_url}"
+        url = f"https://smsmisr.com/api/SMS/?environment=1&username=BE0MFV77&password=c63a781dd862e4d1cb36fe031481a65bf9d1ef5f5df9368e63133e86f34ab175&language=2&sender=527fdd77da70f404ed394f76fd1d44d4ab067a319c2109a8d343ed94a4e099ee&mobile={notification.user.phone}&message={message}"
+        headers = {"Content-Type": "application/json"}
+        requests.post(url, headers=headers)
+        notification.is_sent = True
+        notification.save()
+
+    # settings
+    if instance.book.court.user.is_staff:
+      settings = models.Setting.objects.get(user=instance.book.court.user.staff_for)
+      settings.save()
+    else:
+      settings = models.Setting.objects.get(user=instance.book.court.user)
+      settings.save()
+
     return Response(ser.data)
   return Response(ser.errors)
   # return Response({"":""})
@@ -1002,62 +1008,27 @@ def get_settings(request):
 
 
 
-  books = models.Book.objects.all()
+  books = models.BookTime.objects.all()
   if request.user.is_superuser:
     staffs = models.CustomUser.objects.filter(staff_for=request.user)
     ids=[]
     for i in staffs.all():
        ids.append(i.pk)
-    books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=ids))
+    books = books.filter(Q(book__court__user=request.user) | Q(book__court__user__id__in=ids))
   
   if request.user.is_staff:
     staffs = models.CustomUser.objects.filter(staff_for=request.user.staff_for)
     ids=[]
     for i in staffs.all():
        ids.append(i.pk)
-    books = books.filter(Q(court__user=request.user) | Q(court__user__id__in=ids))
+    books = books.filter(Q(book__court__user=request.user) | Q(book__court__user__id__in=ids))
 
   # display deleted books
   deleted_books = []
-  # try:
-  #   if settings.paying_time_limit != None and int(settings.paying_time_limit) > 0:
-  #     for book in books:
-  #       # limited time
-  #       limited_time_to_pay = settings.paying_time_limit
-  #       # created time
-  #       created_book_time = book.created_at
-  #       # add limited to created book time
-  #       limited_date_to_pay = convert_to_days_and_add_to_date(limited_time_to_pay, created_book_time)
-  #       # compare
-  #       limited_date_formated = datetime.strptime(str(limited_date_to_pay), "%Y-%m-%d %H:%M:%S.%f%z").strftime("%Y-%m-%d")
-  #       todays_date = datetime.strptime(str(datetime.today()), "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d")
-
-  #       print(limited_date_formated < todays_date and not book.is_paied)
-
-  #       if limited_date_formated < todays_date and not book.is_paied:
-  #         #  delete book
-  #         if path == '/profile' and (request.user.is_superuser or request.user.is_staff) and book.is_cancelled == False:
-  #           deleted_books.append({
-  #             "user": book.user.username,
-  #             "name": book.name,
-  #             "phone": book.phone,
-  #             "court": book.court.title,
-  #             "created_at": str(book.created_at),
-  #             "book_date": str(book.book_date),
-  #           })
-  #           book.is_cancelled = True
-  #           book.save()
-  #           settings.save()
-  #         settings.save()
-  #       settings.save()
-  #     settings.save()
-  #   settings.save()
-  # except:
-  #    pass
 
 
   # get cancelled books
-  # cancelled_books = books.filter(Q(is_cancelled=True))
+  cancelled_books = books.filter(Q(is_cancelled=True))
 
   if request.GET.get('cancel_from'):
     cancelled_books = cancelled_books.filter(Q(book_date__gte=request.GET.get('cancel_from')))
@@ -1068,7 +1039,7 @@ def get_settings(request):
   if request.GET.get('cancel_search'):
     cancelled_books = cancelled_books.filter(Q(name__icontains=request.GET.get('cancel_search')) | Q(phone__icontains=request.GET.get('cancel_search')))
      
-  cancelled_ser = serializers.BookSerializer(cancelled_books, many=True)
+  cancelled_ser = serializers.BookTimeSerializer(cancelled_books, many=True)
 
   
   data = {
