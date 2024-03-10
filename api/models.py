@@ -203,7 +203,7 @@ class BookTime(models.Model):
   def get_total_price(self):
     total = 0
     # ball
-    if self.book.court.ball_price and self.with_ball:
+    if self.book.court.ball_price > 0 and self.with_ball:
       total += self.book.court.ball_price
 
     # tools

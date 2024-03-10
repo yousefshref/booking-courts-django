@@ -914,6 +914,7 @@ def book_time_update(request, time_id):
   if ser.is_valid():
     ser.save()
     instance.book.save()
+    instance.save()
 
     # send sms
     if instance.is_cancelled:
