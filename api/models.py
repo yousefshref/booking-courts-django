@@ -46,13 +46,20 @@ class State(models.Model):
 
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True, db_index=True)
-    phone = models.IntegerField(null=True)
+    phone = models.IntegerField(null=True, unique=True, db_index=True)
 
     # staff
     staff_for = models.ForeignKey("CustomUser", on_delete=models.CASCADE, null=True, blank=True, related_name='staff_for_user')
 
+    # wallet infos
+    x_pay_phone = models.IntegerField(null=True, unique=True, db_index=True, blank=True)
+    x_pay_password = models.CharField(null=True, blank=True, max_length=200)
+
     def __str__(self):
         return self.username
+
+    def save(self, *args, **kwargs):
+      super(CustomUser, self).save(*args, **kwargs)
 
 
 
@@ -93,6 +100,16 @@ class Court(models.Model):
   event_to = models.TimeField(null=True, blank=True)
 
 
+
+  def round_to_nearest_hour(self, time):
+      # Calculate the minutes and seconds portion of the time
+      total_seconds = time.hour * 3600 + time.minute * 60 + time.second
+      # Round to the nearest hour
+      rounded_seconds = round(total_seconds / 3600) * 3600
+      # Convert back to hours, minutes, and seconds
+      rounded_time = timedelta(seconds=rounded_seconds)
+      return rounded_time
+
   def save(self, *args, **kwargs):
     if self.ball_price == 0 and self.with_ball:
       self.with_ball = False
@@ -104,7 +121,22 @@ class Court(models.Model):
       self.offer_from = None
       self.offer_to = None
 
+    self.open = str(self.round_to_nearest_hour(self.open))
+    self.close = str(self.round_to_nearest_hour(self.close))
+
+    self.title = self.title.split('_')[0]
+
+    if self.offer_price_per_hour is not None and self.offer_price_per_hour > 0:
+        # Convert positive value to negative
+        self.offer_price_per_hour *= -1
+
+
+    if self.open > self.close:
+        # Swap the values
+        self.open, self.close = self.close, self.open
+
     super(Court, self).save(*args, **kwargs)
+
 
   def __str__(self):
       return str(self.title)
@@ -131,21 +163,6 @@ class CourtVideo(models.Model):
   video = models.FileField(upload_to='videos/', null=True, blank=True)
 
 
-  def save(self, *args, **kwargs):
-    super(CourtVideo, self).save(*args, **kwargs)
-    input_file = f"http://127.0.0.1:8000/{self.video}"  # Replace with your video path
-    # # input_file = video  # Replace with your video path
-    output_file = f"{self.video.name}"  # Desired output path
-    # output_file = f"commresd.mp4"  # Desired output path
-
-    # Set desired video bitrate (adjust as needed)
-    video_bitrate = "800k"
-
-    # Construct the command
-    command = f"ffmpeg -y -i {input_file} -b:v {video_bitrate} {output_file}"
-
-    subprocess.run(command, shell=True)
-
 
 
 class CourtAdditional(models.Model):
@@ -163,8 +180,8 @@ class CourtAdditionalTool(models.Model):
 
 
 paied_choices = (
-   ('E_Wallet', 'E_Wallet'),
-   ('Cash', 'Cash'),
+   ('عند الوصول', 'عند الوصول'),
+   ('محفظة الكترونية', 'محفظة الكترونية'),
 )
 
 class Book(models.Model):
@@ -203,7 +220,7 @@ class BookTime(models.Model):
   def get_total_price(self):
     total = 0
     # ball
-    if self.book.court.ball_price > 0 and self.with_ball:
+    if self.book.court.ball_price > 0 and self.with_ball == 'True':
       total += self.book.court.ball_price
 
     # tools
@@ -213,7 +230,7 @@ class BookTime(models.Model):
     try:
       event_range = get_hours_between(str(self.book.court.event_from), str(self.book.court.event_to))
       # event
-      if self.book.court.event_price and self.event and str(self.book_from)[0:2] in event_range and str(self.book_to)[0:2] in event_range:
+      if self.book.court.event_price and self.event == 'True' and str(self.book_from)[0:2] in event_range and str(self.book_to)[0:2] in event_range:
         total += self.book.court.event_price
     except:
       pass
@@ -245,7 +262,7 @@ def update_total_sum(sender, instance, action, **kwargs):
         instance.save()
 
 class OverTime(models.Model):
-  book = models.ForeignKey(Book, on_delete=models.CASCADE, null=True, related_name='book_over_time')
+  book = models.ForeignKey(Book, unique=True, db_index=True, on_delete=models.CASCADE, null=True, related_name='book_over_time')
   book_from = models.TimeField(null=True, blank=True)
   book_to = models.TimeField(null=True, blank=True)
   note = models.TextField(null=True, blank=True)
@@ -333,12 +350,15 @@ class Setting(models.Model):
    
 class Number(models.Model):
   setting = models.ForeignKey(Setting, on_delete=models.CASCADE, null=True, blank=True)
+  user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
   number = models.IntegerField(null=True, blank=True)
- 
 
-
-
-
+  def save(self, *args, **kwargs):
+    try:
+      self.user = CustomUser.objects.get(phone=self.number)
+    except:
+      pass
+    super(Setting, self).save(*args, **kwargs)
 
 
 

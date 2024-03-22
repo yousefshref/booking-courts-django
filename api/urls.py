@@ -31,11 +31,17 @@ urlpatterns = [
     path('courts/features/create/', views.create_court_features),
     path('courts/features/<int:feature_id>/delete/', views.delete_court_feature),
 
+    path('courts/tools/create/', views.create_court_tools),
+    path('courts/tools/<int:court_id>/delete/', views.delete_court_tool),
+
+    
+    path('courts/<int:court_id>/books/', views.court_books), # get court books
     path('courts/create/', views.create_court),
     path('courts/', views.get_courts),
     path('courts/<int:court_id>/', views.get_court),
     path('courts/<int:court_id>/update/', views.court_update),
     path('courts/<int:court_id>/delete/', views.court_delete),
+    path('courts/all_times/', views.get_admin_times),
 
 
 
@@ -47,10 +53,13 @@ urlpatterns = [
     path('books/', views.get_user_books),
     path('books/<int:book_id>/', views.get_user_book),
     path('books/<int:book_id>/update/', views.book_update),
-    path('books/<int:book_id>/delete/', views.book_delete),
 
     path('books/time/<int:time_id>/', views.book_time),
     path('books/time/<int:time_id>/update/', views.book_time_update),
+
+    path('books/over_time/create/', views.create_over_time),
+    path('books/over_time/<int:over_time_id>/delete/', views.delete_over_time),
+
 
 
     path('settings/<int:setting_id>/numbers/', views.get_numbers),
@@ -59,6 +68,7 @@ urlpatterns = [
 
     path('settings/', views.get_settings),
     path('settings/update/', views.update_settings),
+
 
 
     path('staffs/', views.get_staffs),

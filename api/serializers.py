@@ -65,8 +65,15 @@ class CourtSerializer(serializers.ModelSerializer):
 
 
 
+class OverTimeSerializer(serializers.ModelSerializer):
+  class Meta():
+      model = models.OverTime
+      fields = '__all__'
+      
 class BookSerializer_for_times(serializers.ModelSerializer):
     user_details = UserSerializer(read_only=True, source='user')
+    court_details = CourtSerializer(read_only=True, source='court')
+    book_over_time = OverTimeSerializer(read_only=True, many=True)
     class Meta():
         model = models.Book
         fields = '__all__'
@@ -84,10 +91,7 @@ class BookTimeSerializer(serializers.ModelSerializer):
 #         fields = '__all__'
 
 
-class OverTimeSerializer(serializers.ModelSerializer):
-    class Meta():
-        model = models.OverTime
-        fields = '__all__'
+
 
 class BookSerializer(serializers.ModelSerializer):
     book_time = BookTimeSerializer(many=True, read_only=True)
@@ -102,9 +106,10 @@ class BookSerializer(serializers.ModelSerializer):
 
 
 class NumbergSerializer(serializers.ModelSerializer):
-    class Meta():
-        model = models.Number
-        fields = '__all__'
+  user_details = UserSerializer(source='user', read_only=True)
+  class Meta():
+      model = models.Number
+      fields = '__all__'
 
 class SettingSerializer(serializers.ModelSerializer):
     class Meta():
