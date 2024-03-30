@@ -55,6 +55,9 @@ class CustomUser(AbstractUser):
     x_pay_phone = models.IntegerField(null=True, unique=True, db_index=True, blank=True)
     x_pay_password = models.CharField(null=True, blank=True, max_length=200)
 
+    # is_verified
+    is_verified = models.BooleanField(default=False)
+
     def __str__(self):
         return self.username
 
@@ -99,6 +102,8 @@ class Court(models.Model):
   event_from = models.TimeField(null=True, blank=True)
   event_to = models.TimeField(null=True, blank=True)
 
+  # is_published
+  is_published = models.BooleanField(default=False)
 
 
   def round_to_nearest_hour(self, time):
@@ -111,6 +116,10 @@ class Court(models.Model):
       return rounded_time
 
   def save(self, *args, **kwargs):
+    # check if published
+    if self.user.is_verified:
+      self.is_published = True
+
     if self.ball_price == 0 and self.with_ball:
       self.with_ball = False
 
@@ -121,8 +130,6 @@ class Court(models.Model):
       self.offer_from = None
       self.offer_to = None
 
-    self.open = str(self.round_to_nearest_hour(self.open))
-    self.close = str(self.round_to_nearest_hour(self.close))
 
     self.title = self.title.split('_')[0]
 
@@ -358,7 +365,7 @@ class Number(models.Model):
       self.user = CustomUser.objects.get(phone=self.number)
     except:
       pass
-    super(Setting, self).save(*args, **kwargs)
+    super(Number, self).save(*args, **kwargs)
 
 
 

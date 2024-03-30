@@ -46,7 +46,7 @@ INSTALLED_APPS = [
 ]
 
 EMAIL_HOST_USER = 'yb2005at@gmail.com'
-FRONTEND_URL = 'https://sports.linkawyx.com/'
+FRONTEND_URL = 'http://sports.linkawyx.com/'
 
 
 
