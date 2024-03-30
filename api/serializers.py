@@ -6,6 +6,11 @@ class UserSerializer(serializers.ModelSerializer):
         model = models.CustomUser
         fields = '__all__'
 
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
 class StateSerializer(serializers.ModelSerializer):
     class Meta():
         model = models.State

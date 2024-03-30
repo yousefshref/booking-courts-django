@@ -45,6 +45,9 @@ INSTALLED_APPS = [
     "corsheaders",
 ]
 
+EMAIL_HOST_USER = 'yb2005at@gmail.com'
+FRONTEND_URL = 'http://localhost:3000/'
+
 
 
 

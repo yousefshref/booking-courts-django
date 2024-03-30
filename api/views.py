@@ -10,7 +10,19 @@ from rest_framework.authtoken.models import Token
 from datetime import datetime, timedelta
 from . import serializers
 from . import models
+from rest_framework import status
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
+from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+
+from rest_framework.views import APIView
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
 
 
 todays_date = str(datetime.today())[0:10]
@@ -85,6 +97,61 @@ def login(request):
     serializer = serializers.UserSerializer(user)
     return Response({'token': token.key, 'user': serializer.data})
 
+
+
+# password reset
+class PasswordResetRequestView(APIView):
+  def post(self, request):
+      serializer = serializers.PasswordResetRequestSerializer(data=request.data)
+      if serializer.is_valid():
+          email = serializer.validated_data['email']
+          user = models.CustomUser.objects.get(email=email)
+          uid = urlsafe_base64_encode(force_bytes(user.pk))
+          token = default_token_generator.make_token(user)
+          reset_url = f"{settings.FRONTEND_URL}auth/password-reset/{uid}/{token}/"
+
+          # Email configuration
+          sender_email = "yb2005at@gmail.com"
+          receiver_email = email
+          password = "qxqy rckl ywtc ckmd"
+
+          # Create a multipart message
+          message = MIMEMultipart()
+          message["From"] = sender_email
+          message["To"] = receiver_email
+          message["Subject"] = "LinkawyX Password Reset."
+
+          # Add body to email
+          body = f"Follow this link to reset your account password {reset_url}"
+          message.attach(MIMEText(body, "plain"))
+
+          # Establish a secure connection with the SMTP server
+          server = smtplib.SMTP("smtp.gmail.com", 587)
+          server.starttls()
+
+          # Login to the email server
+          server.login(sender_email, password)
+
+          # Send the email
+          server.sendmail(sender_email, receiver_email, message.as_string())
+
+          # Quit the server
+          server.quit()
+          return Response(status=status.HTTP_200_OK)
+      return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class PasswordResetConfirmView(APIView):
+    def post(self, request, uidb64, token):
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = models.CustomUser.objects.get(pk=uid)
+        if default_token_generator.check_token(user, token):
+            new_password = request.data.get('new_password')
+            user.set_password(new_password)
+            user.save()
+            return Response(status=status.HTTP_200_OK)
+        return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # -------------------------------------------------STATE-------------------------------------------------------
@@ -888,7 +955,7 @@ def book_time_update(request, time_id):
 
       for notification in notifications:
         # court_url = f"http://localhost:3000/courts/{notification.book_time.book.court.pk}"
-        court_url = f"https://booking-courts-nextjs-yousef.vercel.app/courts/{notification.book_time.book.court.pk}"
+        court_url = f"https://sports.linkawyx.com/courts/{notification.book_time.book.court.pk}"
         message = f"الملعب {notification.book_time.book.court.title} فارغ من هذا الوقت {str(notification.slot)} يمكنك حجزة الأن {court_url}"
         url = f"https://smsmisr.com/api/SMS/?environment=1&username=BE0MFV77&password=c63a781dd862e4d1cb36fe031481a65bf9d1ef5f5df9368e63133e86f34ab175&language=2&sender=527fdd77da70f404ed394f76fd1d44d4ab067a319c2109a8d343ed94a4e099ee&mobile={notification.user.phone}&message={message}"
         headers = {"Content-Type": "application/json"}
