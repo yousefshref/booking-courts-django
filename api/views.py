@@ -24,6 +24,8 @@ from rest_framework.views import APIView
 from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
 
+from django.utils.crypto import get_random_string
+
 
 todays_date = str(datetime.today())[0:10]
 todays_date_not_str = datetime.today()
@@ -72,21 +74,71 @@ def create_settings(user_id):
     )
     instance.save()
 
+# @api_view(['POST'])
+# def signup(request):
+#     serializer = serializers.UserSerializer(data=request.data)
+#     if serializer.is_valid():
+#         serializer.save()
+#         user = models.CustomUser.objects.get(username=request.data['username'])
+#         user.set_password(request.data['password'])
+#         user.save()
+#         if user.is_superuser:
+#             create_settings(user.pk)
+#         token = Token.objects.create(user=user)
+        
+#         return Response({'token': token.key, 'user': serializer.data})
+#     return Response(serializer.errors, status=status.HTTP_200_OK)
+from django.core.cache import cache 
+
 @api_view(['POST'])
 def signup(request):
     serializer = serializers.UserSerializer(data=request.data)
     if serializer.is_valid():
-        serializer.save()
-        user = models.CustomUser.objects.get(username=request.data['username'])
-        user.set_password(request.data['password'])
-        user.save()
-        if user.is_superuser:
-            create_settings(user.pk)
-        token = Token.objects.create(user=user)
-        return Response({'token': token.key, 'user': serializer.data})
-    return Response(serializer.errors, status=status.HTTP_200_OK)
+      # Generate a verification code
+      verification_code = get_random_string(length=6)  # You can customize the length as needed
 
+      # Send email containing the verification code
+      send_phone_message(request.data['phone'], verification_code)
 
+      # Store the verification code in the session or database for later verification
+      cache.set(request.data['phone'], verification_code, timeout=3600)
+
+      # Respond with a success message indicating email is sent for verification
+      return Response({'message': 'Verification email sent successfully'})
+    return Response(serializer.errors)
+
+def send_phone_message(phone, verification_code):
+  message = f"الكود الخاص بك {verification_code} لا تشاركة مع احد"
+  url = f"https://smsmisr.com/api/SMS/?environment=1&username=BE0MFV77&password=c63a781dd862e4d1cb36fe031481a65bf9d1ef5f5df9368e63133e86f34ab175&language=2&sender=527fdd77da70f404ed394f76fd1d44d4ab067a319c2109a8d343ed94a4e099ee&mobile={phone}&message={message}"
+  headers = {"Content-Type": "application/json"}
+  requests.post(url, headers=headers, proxies={'http':'','https':''})
+  return Response({"message":"message_sent"})
+
+@api_view(['POST'])
+def verify_signup(request):
+    # Extract user input (email, verification code)
+    phone = request.data.get('phone')
+    verification_code = request.data.get('verification_code')
+
+    # Retrieve the verification code sent to the user
+    stored_verification_code = cache.get(phone)
+
+    if verification_code == stored_verification_code:
+      # Verification successful, proceed with creating the account
+      serializer = serializers.UserSerializer(data=request.data)
+      if serializer.is_valid():
+          serializer.save()
+          user = models.CustomUser.objects.get(username=request.data['username'])
+          user.set_password(request.data['password'])
+          user.save()
+          if user.is_superuser:
+              create_settings(user.pk)
+          token = Token.objects.create(user=user)
+          return Response({'token': token.key, 'user': serializer.data})
+      return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    else:
+      # Verification code doesn't match
+      return Response({'message': 'Invalid verification code'}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
 def login(request):

@@ -69,9 +69,22 @@ class CustomUser(AbstractUser):
 class CourtType(models.Model):
   name = models.CharField(unique=True, db_index=True, max_length=100)
 
+  def __str__(self):
+      return self.name
+
+  class Meta:
+    verbose_name = "CourtType"
+    verbose_name_plural = "CourtTypes"
+
 class CourtTypeT(models.Model):
   name = models.CharField(unique=True, db_index=True, max_length=100)
 
+  def __str__(self):
+      return self.name
+
+  class Meta:
+    verbose_name = "CourtSize"
+    verbose_name_plural = "CourtSizes"
 
 class Court(models.Model):
   user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='user_court')
@@ -174,6 +187,9 @@ class CourtVideo(models.Model):
 
 class CourtAdditional(models.Model):
   court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True, related_name='additional_court')
+
+  def __str__(self) -> str:
+    return self.court.title
 
 
 class CourtAdditionalTool(models.Model):
