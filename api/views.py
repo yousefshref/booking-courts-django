@@ -74,28 +74,16 @@ def create_settings(user_id):
     )
     instance.save()
 
-# @api_view(['POST'])
-# def signup(request):
-#     serializer = serializers.UserSerializer(data=request.data)
-#     if serializer.is_valid():
-#         serializer.save()
-#         user = models.CustomUser.objects.get(username=request.data['username'])
-#         user.set_password(request.data['password'])
-#         user.save()
-#         if user.is_superuser:
-#             create_settings(user.pk)
-#         token = Token.objects.create(user=user)
-        
-#         return Response({'token': token.key, 'user': serializer.data})
-#     return Response(serializer.errors, status=status.HTTP_200_OK)
+
 from django.core.cache import cache 
+import random
 
 @api_view(['POST'])
 def signup(request):
     serializer = serializers.UserSerializer(data=request.data)
     if serializer.is_valid():
       # Generate a verification code
-      verification_code = get_random_string(length=6)  # You can customize the length as needed
+      verification_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])  # You can customize the length as needed
 
       # Send email containing the verification code
       send_phone_message(request.data['phone'], verification_code)
@@ -122,6 +110,9 @@ def verify_signup(request):
 
     # Retrieve the verification code sent to the user
     stored_verification_code = cache.get(phone)
+
+    print(stored_verification_code)
+    print(verification_code)
 
     if verification_code == stored_verification_code:
       # Verification successful, proceed with creating the account
