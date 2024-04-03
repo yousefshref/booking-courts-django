@@ -37,11 +37,33 @@ def get_hours_between(start_time, end_time):
 
 
 
-class State(models.Model):
+class Country(models.Model):
     name = models.CharField(max_length=155,null=True)
 
     def __str__(self):
         return self.name
+
+class State(models.Model):
+  country = models.ForeignKey(Country, on_delete=models.CASCADE, null=True)
+  name = models.CharField(max_length=155,null=True)
+
+  def __str__(self):
+    return self.name
+
+class City(models.Model):
+  state = models.ForeignKey(State, on_delete=models.CASCADE, null=True)
+  country = models.ForeignKey(Country, on_delete=models.CASCADE, null=True)
+  name = models.CharField(max_length=155,null=True)
+
+  def save(self, *args, **kwargs):
+    self.country.pk = self.state.country.pk
+    super(City, self).save(*args, **kwargs)
+
+  def __str__(self):
+    return self.name
+
+
+
 
 
 class CustomUser(AbstractUser):

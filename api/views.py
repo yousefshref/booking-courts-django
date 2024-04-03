@@ -199,16 +199,38 @@ class PasswordResetConfirmView(APIView):
 
 # -------------------------------------------------STATE-------------------------------------------------------
 
-
-
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_countries(request):
+  states = models.Country.objects.all()
+  ser = serializers.CountrySerializer(states, many=True)
+  return Response(ser.data)
+  
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_states(request):
-    states = models.State.objects.all()
-    ser = serializers.StateSerializer(states, many=True)
-    return Response(ser.data)
+  states = models.State.objects.all()
+  if request.GET.get('country_id'):
+    states = states.filter(country__pk=request.GET.get('country_id'))
+  else:
+    states = []
+  ser = serializers.StateSerializer(states, many=True)
+  return Response(ser.data)
 
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_cities(request):
+  states = models.City.objects.all()
+  if request.GET.get('state_id'):
+    states = states.filter(state__pk=request.GET.get('state_id'))
+  else:
+    states = []
+  ser = serializers.CitySerializer(states, many=True)
+  return Response(ser.data)
+  
 
 
 

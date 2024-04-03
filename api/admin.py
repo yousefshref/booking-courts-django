@@ -76,7 +76,6 @@ admin.site.register(models.CourtAdditional, CourtAdditionalAdmin)
 
 admin.site.register(models.CourtType)
 admin.site.register(models.CourtTypeT)
-admin.site.register(models.State)
 
 
 # ---------------Book---------------
@@ -119,11 +118,23 @@ class NumberInline(admin.TabularInline):
     model = models.Number
 
 class SettingAdmin(admin.ModelAdmin):
+  list_display = ['id', 'user']
   inlines = [NumberInline]
 
 
 admin.site.register(models.Setting, SettingAdmin)
 
        
-# ---------------Not------------
-# admin.site.register(models.Notification)
+# ---------------Courties------------
+class CityInline(admin.TabularInline):
+    model = models.City
+    extra = 0
+
+class StateInline(admin.TabularInline):
+    model = models.State
+    extra = 0
+
+class CountryAdmin(admin.ModelAdmin):
+    inlines = [StateInline, CityInline]
+
+admin.site.register(models.Country, CountryAdmin)
