@@ -107,8 +107,15 @@ class BookAdmin(admin.ModelAdmin):
     for i in times.all():
       total += i.total_price
     return total
-       
+
   inlines = [OverTimeInline, BookTimeInline]
+
+
+  def save_all(self, request, queryset):
+    for i in queryset:
+      i.save()
+
+  actions = ['save_all']
 
 admin.site.register(models.Book, BookAdmin)
 
@@ -138,3 +145,7 @@ class CountryAdmin(admin.ModelAdmin):
     inlines = [StateInline, CityInline]
 
 admin.site.register(models.Country, CountryAdmin)
+
+
+admin.site.register(models.Request)
+admin.site.register(models.CourtCustomer)

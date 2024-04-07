@@ -16,16 +16,32 @@ urlpatterns = [
     path('password-reset/<uidb64>/<token>/', views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
 
 
-    path('countries/', views.get_countries),
-    path('get_states/', views.get_states),
-    path('cities/', views.get_cities),
+    path('countries/', views.countries),
+    path('countries/<int:pk>/', views.country_detail),
+
+    path('get_states/', views.states),
+    path('get_states/<int:pk>/', views.state_detail),
+
+    path('cities/', views.cities),
+    path('cities/<int:pk>/', views.city_detail),
 
 
     path('user/', views.get_user),
 
 
+
+    path('all-academies/', views.get_acadmies_filtered),
+    
+    path('requests/', views.get_all_requests_and_create),
+    path('requests/<int:pk>/', views.request_update),
+
+
+
     path('get_court_types/', views.get_court_types),
-    path('get_court_types_2/', views.get_court_types_2),
+    path('get_court_types/<int:pk>/', views.get_court_type),
+
+    path('get_court_types_2/<int:court_type_id>/', views.get_court_types_2),
+    path('get_court_type_2/<int:pk>/', views.get_court_type_2),
 
 
 
@@ -86,5 +102,57 @@ urlpatterns = [
     path('notifications/create/', views.create_notification),
 
 
-]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    path('customers/', views.court_customer_list),
+    path('customers/<int:pk>/', views.court_customer_detail),
+    
+
+
+
+    # admin
+    path('users/', views.users),
+    path('users/<int:pk>/', views.user_detail),
+
+    path('types/', views.get_court_types),
+    path('types/<int:pk>/', views.get_court_type),
+
+
+    path('courts-admin/', views.courts),
+    path('court-admin/<int:pk>/', views.court_detail),
+
+    path('courts-type-admin/', views.court_type),
+    path('courts-type-admin/<int:pk>/', views.court_type_detail),
+
+    path('courts-type2-admin/', views.court_type_2),
+    path('courts-type2-admin/<int:pk>/', views.court_type_2_detail),
+
+
+    path('requests-admin/', views.requests),
+    path('requests-admin/<int:pk>/', views.request_detail),
+
+    path('features-admin/<int:court_id>/', views.court_features),
+    path('features-admin/<int:pk>/', views.court_feature_detail),
+
+    path('additional/', views.court_additionals),
+    path('additional/<int:pk>/', views.court_additional_detail),
+
+    path('additional-tool/<int:pk>/', views.court_additional_tool_detail),
+    path('additional-tools/<int:additional_id>/', views.court_additional_tools),
+
+    path('book-admin/<int:pk>/', views.book_detail),
+    path('books-admin/', views.books),
+
+    path('time-admin/<int:pk>/', views.book_time_detail),
+    path('times-admin/<int:book_id>/', views.book_times),
+
+    path('over-time-admin/<int:pk>/', views.overtime_detail),
+    path('over-time-admin/<int:book_id>/', views.overtimes),
+
+    path('setting-admin/<int:pk>/', views.setting_detail),
+    path('setting-admin/<int:user_id>/', views.settings_admin),
+
+    path('books-admin-details/', views.get_books_details_admin),
+    path('courts-admin-details/', views.get_latest_courts),
+
+ 
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

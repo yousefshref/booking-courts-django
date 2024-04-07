@@ -80,6 +80,9 @@ class CustomUser(AbstractUser):
     # is_verified
     is_verified = models.BooleanField(default=False)
 
+    # is admin
+    x_manager = models.BooleanField(default=False)
+
     def __str__(self):
         return self.username
 
@@ -99,6 +102,7 @@ class CourtType(models.Model):
     verbose_name_plural = "CourtTypes"
 
 class CourtTypeT(models.Model):
+  court_type = models.ForeignKey(CourtType, on_delete=models.CASCADE, null=True)
   name = models.CharField(unique=True, db_index=True, max_length=100)
 
   def __str__(self):
@@ -140,6 +144,8 @@ class Court(models.Model):
   # is_published
   is_published = models.BooleanField(default=False)
 
+  created_at = models.DateTimeField(auto_now_add=True, null=True)
+
 
   def round_to_nearest_hour(self, time):
       # Calculate the minutes and seconds portion of the time
@@ -154,6 +160,8 @@ class Court(models.Model):
     # check if published
     if self.user.is_verified:
       self.is_published = True
+
+    self.type = self.type2.court_type
 
     if self.ball_price == 0 and self.with_ball:
       self.with_ball = False
@@ -186,6 +194,28 @@ class Court(models.Model):
 
 
 
+class Request(models.Model):
+  user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='requests')
+  requested_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, related_name='requested_by')
+  is_accepted = models.BooleanField(default=False)
+  created_at = models.DateTimeField(auto_now_add=True)
+
+  def save(self, *args, **kwargs):
+
+    if Request.objects.filter(user=self.user, requested_by=self.requested_by).exists():
+      Request.objects.filter(user=self.user, requested_by=self.requested_by).delete()
+
+    if self.is_accepted:
+      self.requested_by.staff_for = self.user
+      self.requested_by.save()
+
+    super(Request, self).save(*args, **kwargs)
+
+  def __str__(self):
+    return f"{self.user} requested by {self.requested_by} on {self.created_at}"
+
+
+
 class CourtFeature(models.Model):
   court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True, related_name='court_features')
   feature = models.CharField(max_length=155)
@@ -208,14 +238,14 @@ class CourtVideo(models.Model):
 
 
 class CourtAdditional(models.Model):
-  court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True, related_name='additional_court')
+  court = models.ForeignKey(Court, on_delete=models.CASCADE, null=True, related_name='additional_court', unique=True, blank=True)
 
   def __str__(self) -> str:
     return self.court.title
 
 
 class CourtAdditionalTool(models.Model):
-  court_additional = models.ForeignKey(CourtAdditional, on_delete=models.CASCADE, null=True, related_name='tools_court')
+  court_additional = models.ForeignKey(CourtAdditional, on_delete=models.CASCADE, null=True, blank=True, related_name='tools_court')
   title = models.CharField(max_length=255)
   price = models.IntegerField()
 
@@ -239,6 +269,13 @@ class Book(models.Model):
   total_price = models.IntegerField(null=True, blank=True, default=0)
   created_at = models.DateTimeField(auto_now_add=True)
   updated_at = models.DateTimeField(auto_now=True)
+
+
+  def save(self, *args, **kwargs):
+      same_user_court = CourtCustomer.objects.filter(user=self.user, court=self.court).exists()
+      if not same_user_court:
+        CourtCustomer.objects.create(user=self.user, court=self.court)
+      super().save(*args, **kwargs)
 
 
 
@@ -396,6 +433,9 @@ class Setting(models.Model):
 class Number(models.Model):
   setting = models.ForeignKey(Setting, on_delete=models.CASCADE, null=True, blank=True)
   user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
+  name = models.CharField(max_length=155)
+  address = models.TextField()
+  image = models.ImageField(upload_to='images/numbers/', null=True, blank=True)
   number = models.IntegerField(null=True, blank=True)
 
   def save(self, *args, **kwargs):
@@ -413,3 +453,20 @@ class Notification(models.Model):
   slot = models.CharField(max_length=100)
   book_time = models.ForeignKey(BookTime, on_delete=models.CASCADE, null=True)
   is_sent = models.BooleanField(default=False, null=True)
+
+
+
+
+
+# court customers
+class CourtCustomer(models.Model):
+  court = models.ForeignKey(Court, on_delete=models.CASCADE)
+  user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+  created_at = models.DateTimeField(auto_now_add=True)
+  updated_at = models.DateTimeField(auto_now=True)
+
+  def save(self, *args, **kwargs):
+    super(CourtCustomer, self).save(*args, **kwargs)
+
+  class Meta:
+    unique_together = ('court', 'user')

@@ -92,7 +92,7 @@ def signup(request):
       cache.set(request.data['phone'], verification_code, timeout=3600)
 
       # Respond with a success message indicating email is sent for verification
-      return Response({'message': 'Verification email sent successfully'})
+      return Response({'message': 'تم ارسال رسالة الي رقم هاتفك'})
     return Response(serializer.errors)
 
 def send_phone_message(phone, verification_code):
@@ -112,9 +112,8 @@ def verify_signup(request):
     stored_verification_code = cache.get(phone)
 
     print(stored_verification_code)
-    print(verification_code)
 
-    if verification_code == stored_verification_code:
+    if int(verification_code) == int(stored_verification_code):
       # Verification successful, proceed with creating the account
       serializer = serializers.UserSerializer(data=request.data)
       if serializer.is_valid():
@@ -126,10 +125,10 @@ def verify_signup(request):
               create_settings(user.pk)
           token = Token.objects.create(user=user)
           return Response({'token': token.key, 'user': serializer.data})
-      return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+      return Response(serializer.errors)
     else:
       # Verification code doesn't match
-      return Response({'message': 'Invalid verification code'}, status=status.HTTP_400_BAD_REQUEST)
+      return Response({'message': 'تم كتابه الكود خطأ,يرجي المحاولة من جديد'})
 
 @api_view(['POST'])
 def login(request):
@@ -139,6 +138,10 @@ def login(request):
     token, created = Token.objects.get_or_create(user=user)
     serializer = serializers.UserSerializer(user)
     return Response({'token': token.key, 'user': serializer.data})
+
+
+
+
 
 
 
@@ -198,31 +201,94 @@ class PasswordResetConfirmView(APIView):
 
 
 # -------------------------------------------------STATE-------------------------------------------------------
-
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
-def get_countries(request):
-  states = models.Country.objects.all()
-  ser = serializers.CountrySerializer(states, many=True)
-  return Response(ser.data)
+def countries(request):
+  if request.method == 'GET':
+    states = models.Country.objects.all()
+    ser = serializers.CountrySerializer(states, many=True)
+    return Response(ser.data)
   
-@api_view(['GET'])
+  if request.method == 'POST':
+    ser = serializers.CountrySerializer(data=request.data)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data, status=status.HTTP_201_CREATED)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+  
+  
+@api_view(['GET', 'POST', 'DELETE'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
-def get_states(request):
-  states = models.State.objects.all()
-  if request.GET.get('country_id'):
-    states = states.filter(country__pk=request.GET.get('country_id'))
-  else:
-    states = []
-  ser = serializers.StateSerializer(states, many=True)
-  return Response(ser.data)
+def country_detail(request, pk):
+  if request.method == 'GET':
+    country = models.Country.objects.get(pk=pk)
+    ser = serializers.CountrySerializer(country)
+    return Response(ser.data)
+
+  if request.method == 'POST':
+    country = models.Country.objects.get(pk=pk)
+    ser = serializers.CountrySerializer(country, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    country = models.Country.objects.get(pk=pk)
+    country.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def states(request):
+  if request.method == 'GET':
+    states = models.State.objects.all()
+    if request.GET.get('country_id'):
+      states = states.filter(country__pk=request.GET.get('country_id'))
+    else:
+      states = []
+    ser = serializers.StateSerializer(states, many=True)
+    return Response(ser.data)
+  
+  if request.method == 'POST':
+    ser = serializers.StateSerializer(data=request.data)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data, status=status.HTTP_201_CREATED)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(['GET', 'POST', 'DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def state_detail(request, pk):
+  if request.method == 'GET':
+    state = models.State.objects.get(pk=pk)
+    ser = serializers.StateSerializer(state)
+    return Response(ser.data)
+
+  if request.method == 'POST':
+    state = models.State.objects.get(pk=pk)
+    ser = serializers.StateSerializer(state, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    state = models.State.objects.get(pk=pk)
+    state.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
-def get_cities(request):
+def cities(request):
   states = models.City.objects.all()
   if request.GET.get('state_id'):
     states = states.filter(state__pk=request.GET.get('state_id'))
@@ -231,19 +297,88 @@ def get_cities(request):
   ser = serializers.CitySerializer(states, many=True)
   return Response(ser.data)
   
+@api_view(['GET', 'POST', 'DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def city_detail(request, pk):
+  if request.method == 'GET':
+    city = models.City.objects.get(pk=pk)
+    ser = serializers.CitySerializer(city)
+    return Response(ser.data)
 
+  if request.method == 'POST':
+    city = models.City.objects.get(pk=pk)
+    ser = serializers.CitySerializer(city, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    city = models.City.objects.get(pk=pk)
+    city.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 
 # -------------------------------------------------USER-------------------------------------------------------
 
+
+
+
+
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_user(request):
-    user = models.CustomUser.objects.get(pk=request.user.pk)
+  user = models.CustomUser.objects.get(pk=request.user.pk)
+  ser = serializers.UserSerializer(user)
+  return Response(ser.data)
+
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def users(request):
+  if request.method == 'GET':
+    users = models.CustomUser.objects.all()
+    ser = serializers.UserSerializer(users, many=True)
+    return Response(ser.data)
+  
+  if request.method == 'POST':
+    ser = serializers.UserSerializer(data=request.data)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data, status=status.HTTP_201_CREATED)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def user_detail(request, pk):
+  if request.method == 'GET':
+    user = models.CustomUser.objects.get(pk=pk)
     ser = serializers.UserSerializer(user)
     return Response(ser.data)
+
+  if request.method == 'PUT':
+    user = models.CustomUser.objects.get(pk=pk)
+    ser = serializers.UserSerializer(user, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    user = models.CustomUser.objects.get(pk=pk)
+    user.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
 
 
 
@@ -253,22 +388,108 @@ def get_user(request):
 
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_court_types(request):
-    states = models.CourtType.objects.all()
-    ser = serializers.CourtTypeSerializer(states, many=True)
-    return Response(ser.data)
+  if request.method == 'GET':
+      states = models.CourtType.objects.all()
+      ser = serializers.CourtTypeSerializer(states, many=True)
+      return Response(ser.data)
 
-@api_view(['GET'])
+  if request.method == 'POST':
+      ser = serializers.CourtTypeSerializer(data=request.data)
+      if ser.is_valid():
+          ser.save()
+          return Response(ser.data, status=status.HTTP_201_CREATED)
+      return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
-def get_court_types_2(request):
-    states = models.CourtTypeT.objects.all()
+def get_court_type(request, pk):
+  if request.method == 'GET':
+    state = models.CourtType.objects.get(pk=pk)
+    ser = serializers.CourtTypeSerializer(state)
+    return Response(ser.data)
+
+  if request.method == 'PUT':
+    state = models.CourtType.objects.get(pk=pk)
+    ser = serializers.CourtTypeSerializer(state, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    state = models.CourtType.objects.get(pk=pk)
+    state.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_court_type(request, pk):
+  if request.method == 'GET':
+    state = models.CourtType.objects.get(pk=pk)
+    ser = serializers.CourtTypeSerializer(state)
+    return Response(ser.data)
+
+  if request.method == 'PUT':
+    state = models.CourtType.objects.get(pk=pk)
+    ser = serializers.CourtTypeSerializer(state, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    state = models.CourtType.objects.get(pk=pk)
+    state.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_court_types_2(request, court_type_id):
+    if request.method == 'POST':
+        ser = serializers.CourtTypeTSerializer(data=request.data)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data, status=status.HTTP_201_CREATED)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    states = models.CourtTypeT.objects.filter(court_type__id=court_type_id)
     ser = serializers.CourtTypeTSerializer(states, many=True)
     return Response(ser.data)
 
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_court_type_2(request, pk):
+    if request.method == 'GET':
+        state = models.CourtTypeT.objects.get(pk=pk)
+        ser = serializers.CourtTypeTSerializer(state)
+        return Response(ser.data)
+
+    if request.method == 'PUT':
+        state = models.CourtTypeT.objects.get(pk=pk)
+        ser = serializers.CourtTypeTSerializer(state, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        state = models.CourtTypeT.objects.get(pk=pk)
+        state.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 
@@ -422,12 +643,12 @@ def create_court_additional(court_id):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def create_court(request):
-    ser = serializers.CourtSerializer(data=request.data)
-    if ser.is_valid():
-        ser.save()
-        create_court_additional(ser.data['id'])
-        return Response(ser.data)
-    return Response(ser.errors)
+  ser = serializers.CourtSerializer(data=request.data)
+  if ser.is_valid():
+      ser.save()
+      create_court_additional(ser.data['id'])
+      return Response(ser.data)
+  return Response(ser.errors)
 
 
 @api_view(['DELETE'])
@@ -545,47 +766,51 @@ def court_books(request, court_id):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 # @permission_classes([IsAuthenticated])
 def get_courts(request):
-    courts = models.Court.objects.all()
-    
-    if request.user.is_superuser:
-      courts = courts.filter(Q(user=request.user) | Q(user__staff_for=request.user))
+    courts = models.Court.objects.all().order_by('-id')
 
+    if request.user.is_superuser:
+      staff = models.CustomUser.objects.filter(staff_for=request.user)
+      ids = []
+      for i in staff:
+         ids.append(i.pk)
+      courts = courts.filter(
+        Q(user=request.user) | Q(user__id__in=ids)
+      )
     if request.user.is_staff:
       manager = models.CustomUser.objects.get(id=request.user.staff_for.pk)
-      all_staffs = models.CustomUser.objects.filter(staff_for__pk=manager.pk)
-
+      staff = models.CustomUser.objects.filter(staff_for=manager)
       ids = []
-      for i in all_staffs.all():
+      for i in staff:
         ids.append(i.pk)
-      
-      courts = courts.filter(Q(user=request.user.staff_for) | Q(user__id__in=ids))
+      courts = courts.filter(Q(user__id__in=ids) | Q(user=manager))
 
+    query = Q()
 
     # price from
     if request.GET.get('price_from'):
-       courts = courts.filter(Q(price_per_hour__gte=request.GET.get('price_from')))
+       query &= Q(price_per_hour__gte=request.GET.get('price_from'))
     # price to
     if request.GET.get('price_to'):
-       courts = courts.filter(Q(price_per_hour__lte=request.GET.get('price_to')))
+       query &= Q(price_per_hour__lte=request.GET.get('price_to'))
     # state
     if request.GET.get('state'):
-       courts = courts.filter(Q(state__id=request.GET.get('state')))
+       query &= Q(state__id=request.GET.get('state'))
     # type
     if request.GET.get('type'):
-       courts = courts.filter(Q(type__id=request.GET.get('type')))
+       query &= Q(type__id=request.GET.get('type'))
     # type2
     if request.GET.get('type2'):
-       courts = courts.filter(Q(type2__id=request.GET.get('type2')))
+       query &= Q(type2__id=request.GET.get('type2'))
     # offers
     if request.GET.get('offer') == 'true':
-       courts = courts.filter(Q(offer_price_per_hour__gte=0))
+       query &= Q(offer_price_per_hour__gte=0)
     # events
     if request.GET.get('event') == 'true':
-       courts = courts.filter(Q(event=True))
+       query &= Q(event=True)
 
+    courts = courts.filter(query)
 
     ser = serializers.CourtSerializer(courts.order_by('-id'), many=True)
-
 
     # latest courts
     latest_courts = models.Court.objects.all().order_by('-id')[:5]
@@ -624,50 +849,42 @@ def generate_intervals(start_time_str, end_time_str):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 # @permission_classes([IsAuthenticated])
 def get_court(request, court_id):
-    court = models.Court.objects.filter(pk=court_id)
+    court = models.Court.objects.get(
+       Q(pk=court_id)
+    )
+    
+    if request.user.is_superuser:
+      staff = models.CustomUser.objects.filter(staff_for=request.user)
+      ids = []
+      for i in staff:
+         ids.append(i.pk)
+      court = models.Court.objects.get(
+        Q(pk=court_id) & (Q(user=request.user) | Q(user__id__in=ids))
+      )
+    if request.user.is_staff:
+      manager = models.CustomUser.objects.get(id=request.user.staff_for.pk)
+      staff = models.CustomUser.objects.filter(staff_for=manager)
+      ids = []
+      for i in staff:
+        ids.append(i.pk)
+      court = models.Court.objects.get(Q(pk=court_id) & (Q(user__id__in=ids) | Q(user=manager)))
 
     # get warning before booking
-    court_settings = models.Setting.objects.get(Q(user=court.first().user) | Q(user=court.first().user.staff_for))
+    court_settings = models.Setting.objects.get(
+        Q(user=court.user) | Q(user=court.user.staff_for)
+    )
 
-
-    if request.user.is_superuser:
-      all_staff = models.CustomUser.objects.filter(staff_for=request.user)
-      ids = []
-      for i in all_staff.all():
-          ids.append(i.pk)
-      court = court.get(Q(user=request.user) | Q(user__id__in=ids))
-      court_settings = models.Setting.objects.get(Q(user=request.user) | Q(user__id__in=ids))
-
-    if request.user.is_staff:
-      admin = models.CustomUser.objects.get(pk=request.user.staff_for.pk)
-      all_staff = models.CustomUser.objects.filter(staff_for=admin)
-      ids = []
-      for i in all_staff.all():
-          ids.append(i.pk)
-      court = court.get(Q(user=admin) | Q(user__id__in=ids))
-      court_settings = models.Setting.objects.get(Q(user=admin) | Q(user__id__in=ids))
-
+    # Check if user is superuser or staff for given court
     court_settings_ser = serializers.SettingSerializer(court_settings)
-    
-    data = {}
-    try:
-      court_ser_admin = serializers.CourtSerializer(court)
-      data = {
-          "court":court_ser_admin.data,
-          "slots":generate_intervals(str(court.open), str(court.close)),
-          "paying_warning":court_settings.paying_warning,
-          "court_settings":court_settings_ser.data,
-      }
-    except:
-      court_ser = serializers.CourtSerializer(court.first())
-      data = {
-          "court":court_ser.data,
-          "slots":generate_intervals(str(court.first().open), str(court.first().close)),
-          "paying_warning":court_settings.paying_warning,
-          "court_settings":court_settings_ser.data,
-      }
+    data = {
+        "court": serializers.CourtSerializer(court).data,
+        "slots": generate_intervals(str(court.open), str(court.close)),
+        "paying_warning": court_settings.paying_warning,
+        "court_settings": court_settings_ser.data,
+    }
 
     return Response(data)
+
 
 
 def update_additional_tools(court_id, tools):
@@ -958,20 +1175,50 @@ def delete_over_time(request, over_time_id):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def book_time(request, time_id):
-  instance = models.BookTime.objects.get(id=time_id)
-  try: 
-    pinned_times = generate_dates(datetime.strptime(str(instance.book.book_date), '%Y-%m-%d'), datetime.strptime(str(instance.book_to_date), '%Y-%m-%d'))
+  time = models.BookTime.objects.get(id=time_id)
+  try:
+    pinned_times = generate_dates(datetime.strptime(str(time.book.book_date), '%Y-%m-%d'), datetime.strptime(str(time.book_to_date), '%Y-%m-%d'))
   except:
     pinned_times = []
   
   # can deleted
   # settings
-  if instance.book.court.user.is_staff:
-    settings = models.Setting.objects.get(user=instance.book.court.user.staff_for)
-  else:
-    settings = models.Setting.objects.get(user=instance.book.court.user)
 
-  book_created_at = instance.book.created_at
+  settings = models.Setting.objects.get(user=time.book.court.user)
+
+  if time.book.court.user.is_superuser and not time.book.court.user.is_staff:
+    manager = models.CustomUser.objects.get(pk=time.book.court.user.pk)
+    staff = models.CustomUser.objects.filter(staff_for=manager)
+    ids = []
+    for i in staff:
+      ids.append(i.pk)
+    settings = models.Setting.objects.get(
+       Q(user=time.book.court.user) | Q(user__id__in=ids)
+    )
+
+  if time.book.court.user.is_staff and not time.book.court.user.is_superuser:
+    manager = models.CustomUser.objects.get(pk=time.book.court.user.staff_for)
+    staff = models.CustomUser.objects.filter(staff_for=manager)
+    ids = []
+    for i in staff:
+      ids.append(i.pk)
+    settings = models.Setting.objects.get(
+       Q(user=time.book.court.user.staff_for) | Q(user__id__in=ids)
+    )
+
+
+  # if request.user.is_superuser:
+  #   settings = models.Setting.objects.get(user=request.user)
+
+  # if request.user.is_staff:
+  #   settings = models.Setting.objects.get(user=request.user.staff_for)
+
+  # if time.book.court.user.is_staff:
+  #   settings = models.Setting.objects.get(user=time.book.court.user.staff_for)
+  # else:
+  #   settings = models.Setting.objects.get(user=time.book.court.user)
+
+  book_created_at = time.book.created_at
   # days_time
   can_delete = False
   time_to_cancel = settings.cancel_time_limit
@@ -982,7 +1229,7 @@ def book_time(request, time_id):
     limited_date_formated = datetime.strptime(str(limited_date), "%Y-%m-%d %H:%M:%S.%f%z").strftime("%Y-%m-%d")
     todays_date = datetime.strptime(str(datetime.today()), "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d")
 
-    can_delete = todays_date <= limited_date_formated and not instance.is_paid
+    can_delete = todays_date <= limited_date_formated and not time.is_paid
 
   if request.user.is_superuser:
     can_delete = True
@@ -997,26 +1244,26 @@ def book_time(request, time_id):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def book_time_update(request, time_id):
-  instance = models.BookTime.objects.get(id=time_id)
+  time = models.BookTime.objects.get(id=time_id)
   data = request.data.copy()
   try:
     arr = []
     for i in request.GET.get('tools').split(','):
       arr.append(i)
-    instance.tools.set(arr)
+    time.tools.set(arr)
   except:
-    instance.tools.set([])
+    time.tools.set([])
 
 
-  ser = serializers.BookTimeSerializer(instance, data=data, partial=True)
+  ser = serializers.BookTimeSerializer(time, data=data, partial=True)
   if ser.is_valid():
     ser.save()
-    instance.book.save()
-    instance.save()
+    time.book.save()
+    time.save()
 
     # send sms
-    if instance.is_cancelled:
-      notifications = models.Notification.objects.filter(Q(book_time__id=instance.pk) and Q(is_sent=False))
+    if time.is_cancelled:
+      notifications = models.Notification.objects.filter(Q(book_time__id=time.pk) and Q(is_sent=False))
 
       for notification in notifications:
         # court_url = f"http://localhost:3000/courts/{notification.book_time.book.court.pk}"
@@ -1029,11 +1276,11 @@ def book_time_update(request, time_id):
         notification.save()
 
     # settings
-    if instance.book.court.user.is_staff:
-      settings = models.Setting.objects.get(user=instance.book.court.user.staff_for)
+    if time.book.court.user.is_staff and not time.book.court.user.is_superuser:
+      settings = models.Setting.objects.get(user=time.book.court.user.staff_for)
       settings.save()
     else:
-      settings = models.Setting.objects.get(user=instance.book.court.user)
+      settings = models.Setting.objects.get(user=time.book.court.user)
       settings.save()
 
     return Response(ser.data)
@@ -1078,13 +1325,18 @@ def delete_numbers(request, number_id):
 @permission_classes([IsAuthenticated])
 def create_number(request):
   data = request.data.copy()
-  user = models.CustomUser.objects.get(phone=data['number'])
-  data['user'] = user.pk
-  ser = serializers.NumbergSerializer(data=data)
-  if ser.is_valid():
-    ser.save()
-    return Response(ser.data)
-  return Response(ser.errors)
+  print(data['number'])
+  try:
+    user = models.CustomUser.objects.get(phone=data['number'])
+    data['user'] = user.pk
+    ser = serializers.NumbergSerializer(data=data)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors)
+  except:
+    return Response({"error":True})
+
  
    
 
@@ -1094,45 +1346,26 @@ def create_number(request):
 @permission_classes([IsAuthenticated])
 def get_settings(request):
   # get settings
-  settings = models.Setting.objects.all()
+  settings = models.Setting.objects.filter(
+    Q(user=request.user) if request.user.is_superuser else Q(user=request.user.staff_for) | Q(user__in=models.CustomUser.objects.filter(staff_for=request.user.staff_for))
+  ).first()
 
-  if request.user.is_superuser:
-    settings = models.Setting.objects.get(Q(user=request.user))
-
-  if request.user.is_staff:
-    all_stafs = models.CustomUser.objects.filter(staff_for=request.user.staff_for)
-    settings = models.Setting.objects.get(Q(user=request.user.staff_for) | Q(user__id__in=all_stafs))
-  
   ser = serializers.SettingSerializer(settings)
 
-  books = models.BookTime.objects.all()
-  if request.user.is_superuser:
-    staffs = models.CustomUser.objects.filter(staff_for=request.user)
-    ids=[]
-    for i in staffs.all():
-       ids.append(i.pk)
-    books = books.filter(Q(book__court__user=request.user) | Q(book__court__user__id__in=ids))
-  
-  if request.user.is_staff:
-    staffs = models.CustomUser.objects.filter(staff_for=request.user.staff_for)
-    ids=[]
-    for i in staffs.all():
-       ids.append(i.pk)
-    books = books.filter(Q(book__court__user=request.user) | Q(book__court__user__id__in=ids))
-
+  books = models.BookTime.objects.filter(
+    Q(book__court__user=request.user) if request.user.is_superuser else Q(book__court__user=request.user) | Q(book__court__user__in=models.CustomUser.objects.filter(staff_for=request.user.staff_for))
+  )
 
   # display deleted books when i open profile in ui
   deleted_books = []
   try:
-    all_times = models.BookTime.objects.filter(is_cancelled=False, is_paied=False)
+    all_times = models.BookTime.objects.filter(is_cancelled=False, is_paied=False, book__created_at__lt=convert_to_days_and_add_to_date(settings.paying_time_limit, models.Book.objects.all().order_by("-id")[0].created_at))
 
     numbers = models.Number.objects.filter(setting__id=settings.pk)
-    numbers_arr = []
-    for i in numbers:
-      numbers_arr.append(i.number)
+    numbers_arr = [i.number for i in numbers]
 
     for time in all_times:
-      if time.book.user.phone not in numbers_arr and time.book.created_at > convert_to_days_and_add_to_date(settings.paying_time_limit, time.book.created_at):
+      if time.book.user.phone not in numbers_arr:
         deleted_books.append({
           "book":{
               "name":time.book.name,
@@ -1147,8 +1380,8 @@ def get_settings(request):
         time.is_paied = False
         time.save()
       settings.save()
-  except:
-     pass
+  except IndexError:
+    pass
 
 
   # get cancelled books
@@ -1182,7 +1415,7 @@ def update_settings(request):
   if request.user.is_superuser:
     settings = models.Setting.objects.get(user=request.user)
 
-  if request.user.is_staff:
+  if request.user.is_staff and (not request.user.is_superuser or not request.user.x_manager):
     settings = models.Setting.objects.get(user=request.user.staff_for)
 
   ser = serializers.SettingSerializer(settings, data=request.data, partial=True)
@@ -1336,6 +1569,800 @@ def create_notification(request):
     ser.save()
     return Response(ser.data)
   return Response(ser.errors)
+
+
+
+
+
+
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_acadmies_filtered(request):
+  phone = request.GET.get('phone')
+
+  acedemy = models.CustomUser.objects.filter(is_superuser=True)
+
+  if phone:
+    acedemy = acedemy.filter(phone__icontains=phone)
+
+  ser = serializers.UserSerializer(acedemy, many=True)
+  return Response(ser.data)
+
+
+
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_all_requests_and_create(request):
+  if request.method == 'POST':
+    data = request.data
+
+    ser = serializers.RequestSerializer(data=data)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors)
+  
+  if request.method == 'GET':
+    requests = models.Request.objects.filter(user=request.user, is_accepted=False).order_by('-id')
+
+    print(request.GET.get('search'))
+    if request.GET.get('search'):
+      requests = requests.filter(requested_by__phone__icontains=request.GET.get('search'))
+
+    ser = serializers.RequestSerializer(requests, many=True)
+    return Response(ser.data)
+
+
+
+@api_view(['PUT'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def request_update(request, pk):
+  instance = models.Request.objects.get(pk=pk)
+  ser = serializers.RequestSerializer(instance, data=request.data, partial=True)
+  if ser.is_valid():
+    ser.save()
+    return Response(ser.data)
+  return Response(ser.errors)
+
+
+
+
+
+
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_customer_list(request):
+  if request.method == 'GET':
+    customers = models.CourtCustomer.objects.all().order_by('-id')
+
+    if request.GET.get('court_id'):
+      customers = customers.filter(court__pk=request.GET.get('court_id'))
+
+    if request.user.is_superuser:
+      staff = models.CustomUser.objects.filter(id=request.user.pk)
+      ids = []
+      for i in staff:
+        ids.append(i.pk)
+      customers = customers.filter(
+         Q(court__user=request.user) | Q(court__user__id__in=ids) 
+      )
+
+    if request.user.is_staff:
+      manager = models.CustomUser.objects.get(pk=request.user.staff_for.pk)
+      staff = models.CustomUser.objects.filter(staff_for=manager)
+      ids = []
+      for i in staff:
+        ids.append(i.pk)
+      customers = customers.filter(
+         Q(court__user=request.user) | Q(court__user__id__in=ids) 
+      )
+    
+    ser = serializers.CourtCustomerSerializer(customers, many=True)
+    return Response(ser.data)
+
+  if request.method == 'POST':
+    data = request.data
+    ser = serializers.CourtCustomerSerializer(data=data)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data, status=status.HTTP_201_CREATED)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(['PUT', 'DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_customer_detail(request, pk):
+  if request.method == 'PUT':
+    customer = models.CourtCustomer.objects.get(pk=pk)
+    ser = serializers.CourtCustomerSerializer(customer, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    customer = models.CourtCustomer.objects.get(pk=pk)
+    customer.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# admin
+
+# court utlits
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_type(request):
+  if request.method == 'GET':
+    types = models.CourtType.objects.all()
+    ser = serializers.CourtTypeSerializer(types, many=True)
+    return Response(ser.data)
+
+  if request.method == 'POST':
+    ser = serializers.CourtTypeSerializer(data=request.data)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data, status=status.HTTP_201_CREATED)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_type_detail(request, pk):
+  if request.method == 'GET':
+    type = models.CourtType.objects.get(pk=pk)
+    ser = serializers.CourtTypeSerializer(type)
+    return Response(ser.data)
+
+  if request.method == 'PUT':
+    type = models.CourtType.objects.get(pk=pk)
+    ser = serializers.CourtTypeSerializer(type, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    type = models.CourtType.objects.get(pk=pk)
+    type.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_type_2(request):
+    if request.method == 'GET':
+        types = models.CourtTypeT.objects.all()
+        ser = serializers.CourtTypeTSerializer(types, many=True)
+        return Response(ser.data)
+
+    if request.method == 'POST':
+        ser = serializers.CourtTypeTSerializer(data=request.data)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data, status=status.HTTP_201_CREATED)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_type_2_detail(request, pk):
+    if request.method == 'GET':
+        state = models.CourtTypeT.objects.get(pk=pk)
+        ser = serializers.CourtTypeTSerializer(state)
+        return Response(ser.data)
+
+    if request.method == 'PUT':
+        state = models.CourtTypeT.objects.get(pk=pk)
+        ser = serializers.CourtTypeTSerializer(state, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        state = models.CourtTypeT.objects.get(pk=pk)
+        state.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+# courts
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def courts(request):
+  if request.method == 'GET':
+    courts = models.Court.objects.all().order_by('-id')
+    ser = serializers.CourtSerializer(courts, many=True)
+    return Response(ser.data)
+
+  if request == 'POST':
+    data = request.data
+    ser = serializers.CourtSerializer(data=data)
+    if ser.is_valid():
+      ser.save()
+      create_court_additional(ser.data['id'])
+      return Response(ser.data, status=status.HTTP_201_CREATED)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_detail(request, pk):
+  if request.method == 'GET':
+    court = models.Court.objects.get(pk=pk)
+    ser = serializers.CourtSerializer(court)
+    return Response(ser.data)
+
+  if request.method == 'PUT':
+    court = models.Court.objects.get(pk=pk)
+    ser = serializers.CourtSerializer(court, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    court = models.Court.objects.get(pk=pk)
+    court.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+# requests
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def requests(request):
+  if request.method == 'GET':
+    requests = models.Request.objects.all().order_by('-id')
+    ser = serializers.RequestSerializer(requests, many=True)
+    return Response(ser.data)
+
+  if request.method == 'POST':
+    ser = serializers.RequestSerializer(data=request.data)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data, status=status.HTTP_201_CREATED)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def request_detail(request, pk):
+  if request.method == 'GET':
+    request = models.Request.objects.get(pk=pk)
+    ser = serializers.RequestSerializer(request)
+    return Response(ser.data)
+
+  if request.method == 'PUT':
+    request = models.Request.objects.get(pk=pk)
+    ser = serializers.RequestSerializer(request, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    request = models.Request.objects.get(pk=pk)
+    request.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_feature_detail(request, pk):
+  if request.method == 'GET':
+    feature = models.CourtFeature.objects.get(pk=pk)
+    ser = serializers.CourtFeatureSerializer(feature)
+    return Response(ser.data)
+
+  if request.method == 'PUT':
+    feature = models.CourtFeature.objects.get(pk=pk)
+    ser = serializers.CourtFeatureSerializer(feature, data=request.data, partial=True)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+    feature = models.CourtFeature.objects.get(pk=pk)
+    feature.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_features(request, court_id):
+  if request.method == 'GET':
+    features = models.CourtFeature.objects.filter(court__id=court_id).order_by('-id')
+    ser = serializers.CourtFeatureSerializer(features, many=True)
+    return Response(ser.data)
+
+  if request.method == 'POST':
+    ser = serializers.CourtFeatureSerializer(data=request.data)
+    if ser.is_valid():
+      ser.save()
+      return Response(ser.data, status=status.HTTP_201_CREATED)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_additional_detail(request, pk):
+    if request.method == 'GET':
+        additional = models.CourtAdditional.objects.get(pk=pk)
+        ser = serializers.CourtAdditionalSerializer(additional)
+        return Response(ser.data)
+
+    if request.method == 'PUT':
+        additional = models.CourtAdditional.objects.get(pk=pk)
+        ser = serializers.CourtAdditionalSerializer(additional, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        additional = models.CourtAdditional.objects.get(pk=pk)
+        additional.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_additionals(request):
+    if request.method == 'GET':
+        additionals = models.CourtAdditional.objects.all().order_by('-id')
+        ser = serializers.CourtAdditionalSerializer(additionals, many=True)
+        return Response(ser.data)
+
+    if request.method == 'POST':
+        ser = serializers.CourtAdditionalSerializer(data=request.data)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data, status=status.HTTP_201_CREATED)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_additional_tool_detail(request, pk):
+    if request.method == 'GET':
+        additional_tool = models.CourtAdditionalTool.objects.get(pk=pk)
+        ser = serializers.CourtAdditionalToolSerializer(additional_tool)
+        return Response(ser.data)
+
+    if request.method == 'PUT':
+        additional_tool = models.CourtAdditionalTool.objects.get(pk=pk)
+        ser = serializers.CourtAdditionalToolSerializer(additional_tool, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        additional_tool = models.CourtAdditionalTool.objects.get(pk=pk)
+        additional_tool.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def court_additional_tools(request, additional_id):
+  if request.method == 'GET':
+      additional_tools = models.CourtAdditionalTool.objects.filter(court_additional__id=additional_id).order_by('-id')
+      ser = serializers.CourtAdditionalToolSerializer(additional_tools, many=True)
+      return Response(ser.data)
+
+  if request.method == 'POST':
+      ser = serializers.CourtAdditionalToolSerializer(data=request.data)
+      if ser.is_valid():
+          ser.save()
+          return Response(ser.data, status=status.HTTP_201_CREATED)
+      return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def book_detail(request, pk):
+  if request.method == 'GET':
+      book = models.Book.objects.get(pk=pk)
+      ser = serializers.BookSerializer(book)
+      return Response(ser.data)
+
+  if request.method == 'PUT':
+      book = models.Book.objects.get(pk=pk)
+      ser = serializers.BookSerializer(book, data=request.data, partial=True)
+      if ser.is_valid():
+          ser.save()
+          return Response(ser.data)
+      return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  if request.method == 'DELETE':
+      book = models.Book.objects.get(pk=pk)
+      book.delete()
+      return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def books(request):
+    if request.method == 'GET':
+        books = models.Book.objects.all().order_by('-id')
+        ser = serializers.BookSerializer(books, many=True)
+        return Response(ser.data)
+
+    if request.method == 'POST':
+        ser = serializers.BookSerializer(data=request.data)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data, status=status.HTTP_201_CREATED)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def book_time_detail(request, pk):
+    if request.method == 'GET':
+        book_time = models.BookTime.objects.get(pk=pk)
+        ser = serializers.BookTimeSerializer(book_time)
+        return Response(ser.data)
+
+    if request.method == 'PUT':
+        book_time = models.BookTime.objects.get(pk=pk)
+        ser = serializers.BookTimeSerializer(book_time, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        book_time = models.BookTime.objects.get(pk=pk)
+        book_time.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def book_times(request, book_id):
+  if request.method == 'GET':
+    book_times = models.BookTime.objects.filter(book__id=book_id).order_by('-id')
+    ser = serializers.BookTimeSerializer(book_times, many=True)
+    return Response(ser.data)
+
+  if request.method == 'POST':
+    ser = serializers.BookTimeSerializer(data=request.data)
+    if ser.is_valid():
+        ser.save()
+        return Response(ser.data, status=status.HTTP_201_CREATED)
+    return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# Repeat the above pattern for the remaining models:
+# OverTime, Setting, Number, Notification, CourtCustomer
+
+# OverTime
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def overtime_detail(request, pk):
+    if request.method == 'GET':
+        overtime = models.OverTime.objects.get(pk=pk)
+        ser = serializers.OverTimeSerializer(overtime)
+        return Response(ser.data)
+
+    if request.method == 'PUT':
+        overtime = models.OverTime.objects.get(pk=pk)
+        ser = serializers.OverTimeSerializer(overtime, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        overtime = models.OverTime.objects.get(pk=pk)
+        overtime.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def overtimes(request, book_id):
+    if request.method == 'GET':
+      overtimes = models.OverTime.objects.get(book__id=book_id)
+      ser = serializers.OverTimeSerializer(overtimes, many=True)
+      return Response(ser.data)
+
+    if request.method == 'POST':
+        ser = serializers.OverTimeSerializer(data=request.data)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data, status=status.HTTP_201_CREATED)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# Repeat the above pattern for the remaining models:
+# Setting, Number, Notification, CourtCustomer
+
+# Setting
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def setting_detail(request, pk):
+    if request.method == 'GET':
+        setting = models.Setting.objects.get(pk=pk)
+        ser = serializers.SettingSerializer(setting)
+        return Response(ser.data)
+
+    if request.method == 'PUT':
+        setting = models.Setting.objects.get(pk=pk)
+        ser = serializers.SettingSerializer(setting, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        setting = models.Setting.objects.get(pk=pk)
+        setting.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def settings_admin(request, user_id):
+    if request.method == 'GET':
+        settings = models.Setting.objects.get(user__id=user_id)
+        ser = serializers.SettingSerializer(settings, many=True)
+        return Response(ser.data)
+
+    if request.method == 'POST':
+        ser = serializers.SettingSerializer(data=request.data)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data, status=status.HTTP_201_CREATED)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# Repeat the above pattern for the remaining models:
+# Number, Notification, CourtCustomer
+
+# Number
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def number_detail(request, pk):
+    if request.method == 'GET':
+        number = models.Number.objects.get(pk=pk)
+        ser = serializers.NumberSerializer(number)
+        return Response(ser.data)
+
+    if request.method == 'PUT':
+        number = models.Number.objects.get(pk=pk)
+        ser = serializers.NumberSerializer(number, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        number = models.Number.objects.get(pk=pk)
+        number.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def numbers(request):
+    if request.method == 'GET':
+        numbers = models.Number.objects.all().order_by('-id')
+        ser = serializers.NumberSerializer(numbers, many=True)
+        return Response(ser.data)
+
+    if request.method == 'POST':
+        ser = serializers.NumberSerializer(data=request.data)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data, status=status.HTTP_201_CREATED)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# Repeat the above pattern for the remaining models:
+# Notification, CourtCustomer
+
+# Notification
+@api_view(['PUT', 'DELETE', 'GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def notification_detail(request, pk):
+    if request.method == 'GET':
+        notification = models.Notification.objects.get(pk=pk)
+        ser = serializers.NotificationSerializer(notification)
+        return Response(ser.data)
+
+    if request.method == 'PUT':
+        notification = models.Notification.objects.get(pk=pk)
+        ser = serializers.NotificationSerializer(notification, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'DELETE':
+        notification = models.Notification.objects.get(pk=pk)
+        notification.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def notifications(request):
+    if request.method == 'GET':
+      notifications = models.Notification.objects.all().order_by('-id')
+      ser = serializers.NotificationSerializer(notifications, many=True)
+      return Response(ser.data)
+
+    if request.method == 'POST':
+      ser = serializers.NotificationSerializer(data=request.data)
+      if ser.is_valid():
+          ser.save()
+          return Response(ser.data, status=status.HTTP_201_CREATED)
+      return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_books_details_admin(request):
+  times = models.BookTime.objects.all()
+  
+  if request.GET.get('date_from'):
+    times = times.filter(book__created_at__gte=request.GET.get('date_from'))
+    
+  if request.GET.get('date_to'):
+    times = times.filter(book__created_at__lte=request.GET.get('date_to'))
+
+  total_earning_sum = times.aggregate(Sum('total_price'))
+  total_from_online_payment = times.exclude(paied='عند الوصول').aggregate(Sum('total_price'))
+  total_from_cash = times.filter(paied='عند الوصول').aggregate(Sum('total_price'))
+
+  all_times_data = {
+     "length": len(times),
+     "total_price": total_earning_sum['total_price__sum'],
+     "total_earning_online_payment": total_from_online_payment['total_price__sum'],
+     "total_from_cash": total_from_cash['total_price__sum'],
+  }
+  
+  # success
+  success_times = models.BookTime.objects.filter(is_paied=True, is_cancelled=False)
+
+  if request.GET.get('date_from'):
+    success_times = success_times.filter(book__created_at__gte=request.GET.get('date_from'))
+    
+  if request.GET.get('date_to'):
+    success_times = success_times.filter(book__created_at__lte=request.GET.get('date_to'))
+
+  success_times_total_earning_sum = success_times.aggregate(Sum('total_price'))
+  success_times_total_from_online_payment = success_times.exclude(paied='عند الوصول').aggregate(Sum('total_price'))
+  success_times_total_from_cash = success_times.filter(paied='عند الوصول').aggregate(Sum('total_price'))
+
+  success_times_data = {
+     "success_times_length": len(success_times),
+     "success_times_total_price": success_times_total_earning_sum['total_price__sum'],
+     "success_times_total_earning_online_payment": success_times_total_from_online_payment['total_price__sum'],
+     "success_times_total_from_cash": success_times_total_from_cash['total_price__sum'],
+  }
+
+  # warning
+  warning_times = models.BookTime.objects.filter(is_paied=False, is_cancelled=False)
+
+  if request.GET.get('date_from'):
+    warning_times = warning_times.filter(book__created_at__gte=request.GET.get('date_from'))
+    
+  if request.GET.get('date_to'):
+    warning_times = warning_times.filter(book__created_at__lte=request.GET.get('date_to'))
+
+  warning_times_total_earning_sum = warning_times.aggregate(Sum('total_price'))
+  warning_times_total_from_online_payment = warning_times.exclude(paied='عند الوصول').aggregate(Sum('total_price'))
+  warning_times_total_from_cash = warning_times.filter(paied='عند الوصول').aggregate(Sum('total_price'))
+
+  warning_times_data = {
+     "warning_times_length": len(warning_times),
+     "warning_times_total_price": warning_times_total_earning_sum['total_price__sum'],
+     "warning_times_total_earning_online_payment": warning_times_total_from_online_payment['total_price__sum'],
+     "warning_times_total_from_cash": warning_times_total_from_cash['total_price__sum'],
+  }
+
+
+  # cancelled
+  cancelled_times = models.BookTime.objects.filter(is_paied=False, is_cancelled=True)
+
+  if request.GET.get('date_from'):
+    cancelled_times = cancelled_times.filter(book__created_at__gte=request.GET.get('date_from'))
+    
+  if request.GET.get('date_to'):
+    cancelled_times = cancelled_times.filter(book__created_at__lte=request.GET.get('date_to'))
+
+  cancelled_times_total_earning_sum = cancelled_times.aggregate(Sum('total_price'))
+  cancelled_times_total_from_online_payment = cancelled_times.exclude(paied='عند الوصول').aggregate(Sum('total_price'))
+  cancelled_times_total_from_cash = cancelled_times.filter(paied='عند الوصول').aggregate(Sum('total_price'))
+
+  cancelled_times_data = {
+     "cancelled_times_length": len(cancelled_times),
+     "cancelled_times_total_price": cancelled_times_total_earning_sum['total_price__sum'],
+     "cancelled_times_total_earning_online_payment": cancelled_times_total_from_online_payment['total_price__sum'],
+     "cancelled_times_total_from_cash": cancelled_times_total_from_cash['total_price__sum'],
+  }
+
+
+  return Response({
+    "all_times_data": all_times_data, 
+    "success_times_data": success_times_data, 
+    "warning_times_data": warning_times_data, 
+    "cancelled_times_data": cancelled_times_data
+  })
+
+
+
+
+
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def get_latest_courts(request):
+  date_from = datetime.today() - timedelta(days=3)
+  courts = models.Court.objects.filter(created_at__gte=date_from).order_by('-created_at')
+
+  serializer = serializers.CourtSerializer(courts, many=True)
+  return Response(serializer.data)
+
+
+
+
 
 
 

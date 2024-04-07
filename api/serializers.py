@@ -7,6 +7,13 @@ class UserSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class RequestSerializer(serializers.ModelSerializer):
+  requested_by_details = UserSerializer(read_only=True, source='requested_by')
+  class Meta():
+      model = models.Request
+      fields = '__all__'
+
+
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
@@ -137,3 +144,17 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta():
         model = models.Notification
         fields = '__all__'
+
+
+
+
+class CourtCustomerSerializer(serializers.ModelSerializer):
+  user_details = UserSerializer(read_only=True, source='user')
+  class Meta():
+      model = models.CourtCustomer
+      fields = '__all__'
+
+
+
+
+
